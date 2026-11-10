@@ -184,20 +184,19 @@
                 <span id="save-timestamp" class="text-[11px] font-medium text-slate-300">Saved</span>
             </div>
 
-            <!-- Refresh Button (Reloads latest data from projects.json) -->
-            <button onclick="refreshNetworkJSON()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-lg border border-slate-700 shadow-sm transition-all flex items-center space-x-1.5 group" title="Refresh dashboard with latest network data from U:\PBK\Greenville\Arch\2026 Projects\projectData\projects.json">
-                <i class="fa-solid fa-rotate text-red-400 group-hover:rotate-180 transition-transform duration-500"></i>
-                <span>Refresh</span>
+            <!-- GitHub Sync Status & Settings Button -->
+            <button onclick="openGitHubConfigModal()" class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg border border-slate-700 flex items-center space-x-1.5" title="Configure GitHub Repo Sync">
+                <i class="fa-brands fa-github text-sm text-slate-300"></i>
+                <span id="github-sync-badge" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 font-medium">Config Sync</span>
             </button>
 
-            <!-- Single Unified Save Button -->
-            <button onclick="saveTasks(true)" class="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-lg shadow-md transition-all flex items-center space-x-1.5" title="Save changes & write directly to U:\PBK\Greenville\Arch\2026 Projects\projectData\projects.json">
-                <i class="fa-solid fa-floppy-disk text-white"></i>
-                <span>Save</span>
+            <button onclick="saveTasks(true)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-sm rounded-lg border border-slate-700 transition-all flex items-center space-x-1.5" title="Save changes and commit to GitHub">
+                <i class="fa-solid fa-floppy-disk text-slate-300"></i>
+                <span class="hidden md:inline">Save</span>
             </button>
 
-            <button id="header-add-task-btn" onclick="openModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm rounded-lg border border-slate-700 transition-all flex items-center space-x-2">
-                <i class="fa-solid fa-plus text-red-400"></i>
+            <button id="header-add-task-btn" onclick="openModal()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium text-sm rounded-lg shadow-lg shadow-red-600/20 transition-all flex items-center space-x-2">
+                <i class="fa-solid fa-plus"></i>
                 <span>Add Task</span>
             </button>
 
@@ -658,6 +657,44 @@
         </div>
     </div>
 
+    <!-- GitHub Repository Sync Configuration Modal -->
+    <div id="github-config-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                    <i class="fa-brands fa-github text-red-600"></i>
+                    <span>GitHub Repository Sync Settings</span>
+                </h3>
+                <button onclick="closeGitHubConfigModal()" class="text-slate-400 hover:text-slate-700">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form onsubmit="handleGitHubConfigSubmit(event)" class="mt-4 space-y-4 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-600 uppercase mb-1">GitHub Repository <span class="text-red-500">*</span></label>
+                    <input type="text" id="gh-repo-input" required placeholder="owner/repository-name (e.g., pbk-arch/projects-dashboard)" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-600 uppercase mb-1">Branch Name</label>
+                    <input type="text" id="gh-branch-input" placeholder="main" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-600 uppercase mb-1">JSON File Path inside Repository</label>
+                    <input type="text" id="gh-path-input" placeholder="projects.json" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-600 uppercase mb-1">GitHub Personal Access Token (PAT)</label>
+                    <input type="password" id="gh-token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    <p class="text-[10px] text-slate-400 mt-1">Token is saved securely in local browser storage and used only to commit updates to your repository on Save.</p>
+                </div>
+                <div class="flex justify-end space-x-2 pt-4 border-t border-slate-200">
+                    <button type="button" onclick="closeGitHubConfigModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Save Settings</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Application JavaScript Logic -->
     <script>
         // Sample Initial Data Setup
@@ -710,8 +747,14 @@
         let projectsStore = {};
         let activeProjectId = 'default-project';
 
-        // Role Management State
-        let currentUserRole = 'guest'; // 'guest' or 'admin'
+        // GitHub Repository Integration State
+        let githubConfig = {
+            repo: '',        // Format: 'owner/repo'
+            branch: 'main',
+            path: 'projects.json',
+            token: '',
+            sha: null       // Blob SHA for committing file updates
+        };
 
         // Current Active Project State References
         let tasks = [];
@@ -723,14 +766,148 @@
         let currentCalendarDate = new Date();
         let lastSavedTime = null;
         let selectedTaskIds = [];
-        // Local Server Sync & Target Network Folder Memory
-        const NETWORK_DIRECTORY_PATH = "U:\\PBK\\Greenville\\Arch\\2026 Projects\\projectData";
-        const LOCAL_SERVER_API = "http://localhost:3000/api/projects";
-        let localFileHandle = null;
 
-        async function initApp() {
+        let currentUserRole = 'guest';
+
+        function loadActiveProjectData() {
+            if (!projectsStore || Object.keys(projectsStore).length === 0) return;
+            
+            if (!activeProjectId || !projectsStore[activeProjectId]) {
+                activeProjectId = Object.keys(projectsStore)[0];
+            }
+
+            const currentProj = projectsStore[activeProjectId];
+            if (currentProj) {
+                tasks = currentProj.tasks || [];
+                headerSettings = currentProj.headerSettings || { ...SAMPLE_HEADER };
+                projectDeadline = currentProj.deadline || formatDateOffset(20);
+                lastSavedTime = currentProj.lastSaved || null;
+            }
+        }
+
+        // Expose mouse handlers globally on window immediately to prevent reference errors on <body> events
+        window.handleGlobalMouseMove = function(e) {
+            if (!activeDragMode || !draggedTaskId) return;
+
+            if (activeDragMode === 'connect-dependency') {
+                const tempPath = document.getElementById('temp-drag-path');
+                const svgRect = document.getElementById('dependency-svg')?.getBoundingClientRect();
+                const sourceEl = document.getElementById(`gantt-bar-${draggedTaskId}`);
+
+                if (tempPath && svgRect && sourceEl) {
+                    const sourceRect = sourceEl.getBoundingClientRect();
+                    const startX = sourceRect.right - svgRect.left;
+                    const startY = sourceRect.top + (sourceRect.height / 2) - svgRect.top;
+
+                    const currX = e.clientX - svgRect.left;
+                    const currY = e.clientY - svgRect.top;
+
+                    tempPath.setAttribute('d', `M ${startX} ${startY} L ${currX} ${currY}`);
+                }
+                return;
+            }
+
+            const barEl = document.getElementById(`gantt-bar-${draggedTaskId}`);
+            if (!barEl) return;
+
+            const deltaX = e.clientX - dragStartX;
+
+            if (activeDragMode === 'move') {
+                const newLeft = Math.max(0, originalStartOffset + deltaX);
+                barEl.style.left = `${newLeft}px`;
+            } else if (activeDragMode === 'resize-left') {
+                const newLeft = Math.max(0, originalStartOffset + deltaX);
+                const newWidth = Math.max(DAY_WIDTH, originalBarWidth - deltaX);
+                barEl.style.left = `${newLeft}px`;
+                barEl.style.width = `${newWidth}px`;
+            } else if (activeDragMode === 'resize-right') {
+                const newWidth = Math.max(DAY_WIDTH, originalBarWidth + deltaX);
+                barEl.style.width = `${newWidth}px`;
+            }
+
+            // Dynamically redraw dependency lines during bar movement
+            drawDependencyLines();
+        };
+
+        window.handleGlobalMouseUp = function(e) {
+            if (!activeDragMode || !draggedTaskId) return;
+
+            if (activeDragMode === 'connect-dependency') {
+                const tempPath = document.getElementById('temp-drag-path');
+                if (tempPath) tempPath.classList.add('hidden');
+
+                // Check target element dropped on
+                const targetRow = e.target.closest('[data-task-id]');
+                if (targetRow) {
+                    const targetTaskId = parseInt(targetRow.getAttribute('data-task-id'));
+                    if (targetTaskId && targetTaskId !== draggedTaskId) {
+                        toggleDependency(draggedTaskId, targetTaskId);
+                    }
+                }
+
+                activeDragMode = null;
+                draggedTaskId = null;
+                return;
+            }
+
+            const barEl = document.getElementById(`gantt-bar-${draggedTaskId}`);
+            const task = tasks.find(t => t.id === draggedTaskId);
+
+            if (barEl && task && timelineMinDate) {
+                const finalLeftPx = parseFloat(barEl.style.left) || 0;
+                const finalWidthPx = parseFloat(barEl.style.width) || DAY_WIDTH;
+
+                const startOffsetDays = Math.round(finalLeftPx / DAY_WIDTH);
+                const durationDays = Math.max(1, Math.round(finalWidthPx / DAY_WIDTH));
+
+                const newStartDate = new Date(timelineMinDate);
+                newStartDate.setDate(newStartDate.getDate() + startOffsetDays);
+
+                const newDueDate = new Date(newStartDate);
+                newDueDate.setDate(newDueDate.getDate() + (durationDays - 1));
+
+                const oldStart = task.startDate || task.dueDate;
+                const oldStartMs = new Date(oldStart + 'T00:00:00').getTime();
+                const newStartMs = newStartDate.getTime();
+                const diffDays = Math.round((newStartMs - oldStartMs) / (1000 * 60 * 60 * 24));
+
+                const formattedStart = newStartDate.toISOString().split('T')[0];
+                const formattedDue = newDueDate.toISOString().split('T')[0];
+
+                // Check if this task has downstream dependent tasks
+                const downstreamDependents = tasks.filter(t => t.dependencies && t.dependencies.includes(task.id));
+
+                if (diffDays !== 0 && downstreamDependents.length > 0) {
+                    pendingShiftData = {
+                        taskId: task.id,
+                        newStart: formattedStart,
+                        newDue: formattedDue,
+                        diffDays: diffDays,
+                        dependents: downstreamDependents
+                    };
+                    promptDependencyShiftModal(diffDays);
+                } else {
+                    task.startDate = formattedStart;
+                    task.dueDate = formattedDue;
+                    saveTasks();
+                    renderApp();
+                }
+            }
+
+            activeDragMode = null;
+            draggedTaskId = null;
+        };
+
+        function initApp() {
             const savedProjects = localStorage.getItem('project_horizon_all_projects');
             const savedActiveId = localStorage.getItem('project_horizon_active_id');
+            const savedGHConfig = localStorage.getItem('project_horizon_gh_config');
+
+            if (savedGHConfig) {
+                try {
+                    githubConfig = { ...githubConfig, ...JSON.parse(savedGHConfig) };
+                } catch(e) {}
+            }
 
             if (savedProjects) {
                 try {
@@ -755,62 +932,155 @@
             activeProjectId = savedActiveId && projectsStore[savedActiveId] ? savedActiveId : Object.keys(projectsStore)[0];
             loadActiveProjectData();
 
-            // Automatic Network JSON Sync on Startup
-            await autoLoadNetworkJSON();
-
             renderHeader();
             renderCategoryFilterList();
             updateRoleUI();
+            updateGitHubSyncBadge();
+            
+            // Auto fetch latest projects.json from GitHub Pages host on load
+            fetchProjectsFromGitHub();
+
             switchView('home');
         }
 
-        // Auto-load JSON from target network folder or server endpoint on app open
-        async function autoLoadNetworkJSON() {
+        async function fetchProjectsFromGitHub() {
             try {
-                // 1. Fetch from relative path or mapped directory endpoint
-                const relResponse = await fetch('projects.json', { cache: 'no-cache' });
-                if (relResponse.ok) {
-                    const data = await relResponse.json();
-                    if (data && data.projectsStore) {
-                        projectsStore = data.projectsStore;
-                        loadActiveProjectData();
-                        return true;
+                // Try relative fetch first (works directly on GitHub Pages)
+                let response = await fetch('./projects.json?t=' + Date.now());
+                
+                // If token & repo are set, fallback to GitHub API endpoint
+                if (!response.ok && githubConfig.repo) {
+                    const apiUrl = `https://api.github.com/repos/${githubConfig.repo}/contents/${githubConfig.path || 'projects.json'}?ref=${githubConfig.branch || 'main'}`;
+                    const headers = githubConfig.token ? { 'Authorization': `token ${githubConfig.token}` } : {};
+                    response = await fetch(apiUrl, { headers });
+                    if (response.ok) {
+                        const fileData = await response.json();
+                        githubConfig.sha = fileData.sha;
+                        const decodedContent = decodeURIComponent(escape(atob(fileData.content.replace(/\s/g, ''))));
+                        const parsed = JSON.parse(decodedContent);
+                        if (parsed && parsed.projectsStore) {
+                            projectsStore = parsed.projectsStore;
+                            loadActiveProjectData();
+                            renderApp();
+                            renderProjectsHome();
+                            return;
+                        }
                     }
                 }
-            } catch (e) {}
 
-            try {
-                // 2. Try local server API if active on local machine
-                const response = await fetch(LOCAL_SERVER_API, { cache: 'no-cache' });
                 if (response.ok) {
-                    const data = await response.json();
-                    if (data && data.projectsStore) {
-                        projectsStore = data.projectsStore;
+                    const parsed = await response.json();
+                    if (parsed && parsed.projectsStore) {
+                        projectsStore = parsed.projectsStore;
                         loadActiveProjectData();
-                        return true;
+                        renderApp();
+                        renderProjectsHome();
                     }
                 }
-            } catch (e) {}
-            return false;
+            } catch (err) {
+                console.warn('GitHub JSON fetch fallback:', err);
+            }
         }
 
-        // Manual Refresh Handler
-        async function refreshNetworkJSON() {
-            const refreshed = await autoLoadNetworkJSON();
-            renderHeader();
-            renderApp();
-            if (activeView === 'home') renderProjectsHome();
+        async function commitProjectsToGitHub() {
+            if (!githubConfig.repo || !githubConfig.token) return false;
 
-            // Brief visual notification
-            const saveInd = document.getElementById('save-indicator');
-            const stampEl = document.getElementById('save-timestamp');
-            if (saveInd && stampEl) {
-                const prevText = stampEl.textContent;
-                stampEl.textContent = refreshed ? 'Refreshed from JSON!' : 'Checked for updates';
-                saveInd.classList.remove('hidden');
-                setTimeout(() => {
-                    stampEl.textContent = prevText;
-                }, 2500);
+            try {
+                const repoPath = githubConfig.path || 'projects.json';
+                const branch = githubConfig.branch || 'main';
+                const apiUrl = `https://api.github.com/repos/${githubConfig.repo}/contents/${repoPath}`;
+
+                // Get current file SHA if missing
+                if (!githubConfig.sha) {
+                    const getRes = await fetch(`${apiUrl}?ref=${branch}`, {
+                        headers: { 'Authorization': `token ${githubConfig.token}` }
+                    });
+                    if (getRes.ok) {
+                        const getJson = await getRes.json();
+                        githubConfig.sha = getJson.sha;
+                    }
+                }
+
+                const jsonContent = JSON.stringify({
+                    lastUpdated: new Date().toISOString(),
+                    projectsStore: projectsStore
+                }, null, 2);
+
+                const utf8Bytes = new TextEncoder().encode(jsonContent);
+                const base64Content = btoa(String.fromCharCode(...utf8Bytes));
+
+                const bodyPayload = {
+                    message: `Update schedule data: ${new Date().toLocaleString()}`,
+                    content: base64Content,
+                    branch: branch
+                };
+
+                if (githubConfig.sha) {
+                    bodyPayload.sha = githubConfig.sha;
+                }
+
+                const putRes = await fetch(apiUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${githubConfig.token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(bodyPayload)
+                });
+
+                if (putRes.ok) {
+                    const resData = await putRes.json();
+                    if (resData.content && resData.content.sha) {
+                        githubConfig.sha = resData.content.sha;
+                    }
+                    return true;
+                } else {
+                    const errData = await putRes.json();
+                    console.error('GitHub API error:', errData);
+                    return false;
+                }
+            } catch (err) {
+                console.error('GitHub commit error:', err);
+                return false;
+            }
+        }
+
+        function openGitHubConfigModal() {
+            document.getElementById('gh-repo-input').value = githubConfig.repo || '';
+            document.getElementById('gh-branch-input').value = githubConfig.branch || 'main';
+            document.getElementById('gh-path-input').value = githubConfig.path || 'projects.json';
+            document.getElementById('gh-token-input').value = githubConfig.token || '';
+            document.getElementById('github-config-modal').classList.remove('hidden');
+        }
+
+        function closeGitHubConfigModal() {
+            document.getElementById('github-config-modal').classList.add('hidden');
+        }
+
+        function handleGitHubConfigSubmit(e) {
+            e.preventDefault();
+            githubConfig.repo = document.getElementById('gh-repo-input').value.trim();
+            githubConfig.branch = document.getElementById('gh-branch-input').value.trim() || 'main';
+            githubConfig.path = document.getElementById('gh-path-input').value.trim() || 'projects.json';
+            githubConfig.token = document.getElementById('gh-token-input').value.trim();
+            githubConfig.sha = null; // Reset SHA to fetch new file pointer
+
+            localStorage.setItem('project_horizon_gh_config', JSON.stringify(githubConfig));
+            updateGitHubSyncBadge();
+            closeGitHubConfigModal();
+            fetchProjectsFromGitHub();
+        }
+
+        function updateGitHubSyncBadge() {
+            const badge = document.getElementById('github-sync-badge');
+            if (badge) {
+                if (githubConfig.repo && githubConfig.token) {
+                    badge.textContent = 'GH Auto-Sync';
+                    badge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-medium';
+                } else {
+                    badge.textContent = 'Config Sync';
+                    badge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 font-medium';
+                }
             }
         }
 
@@ -829,57 +1099,43 @@
                 lastSaved: lastSavedTime
             };
 
-            const jsonPayload = JSON.stringify({
-                exportDate: new Date().toISOString(),
-                targetDirectory: NETWORK_DIRECTORY_PATH,
-                projectsStore: projectsStore
-            }, null, 2);
-
-            // 1. Save to Local Storage as browser fallback
+            // Save to Local Storage as offline fallback
             localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
             localStorage.setItem('project_horizon_active_id', activeProjectId);
 
-            // 2. POST to local network server endpoint if running
-            try {
-                fetch(LOCAL_SERVER_API, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: jsonPayload
-                }).catch(() => {});
-            } catch (err) {}
-
-            // 3. Save directly to file in U:\PBK\Greenville\Arch\2026 Projects\projectData\projects.json
-            if (manual) {
-                try {
-                    if (window.showSaveFilePicker) {
-                        if (!localFileHandle) {
-                            localFileHandle = await window.showSaveFilePicker({
-                                suggestedName: 'projects.json',
-                                types: [{
-                                    description: 'Project Data JSON File',
-                                    accept: { 'application/json': ['.json'] }
-                                }]
-                            });
-                        }
-                        const writable = await localFileHandle.createWritable();
-                        await writable.write(jsonPayload);
-                        await writable.close();
-                    } else {
-                        // Fallback trigger standard file download
-                        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonPayload);
-                        const downloadAnchor = document.createElement('a');
-                        downloadAnchor.setAttribute("href", dataStr);
-                        downloadAnchor.setAttribute("download", "projects.json");
-                        document.body.appendChild(downloadAnchor);
-                        downloadAnchor.click();
-                        downloadAnchor.remove();
-                    }
-                } catch (fileErr) {
-                    // User closed picker or canceled dialog
+            // Attempt GitHub REST API commit if configured
+            if (githubConfig.repo && githubConfig.token) {
+                const committed = await commitProjectsToGitHub();
+                if (committed && manual) {
+                    alert('Successfully saved & committed schedule updates to GitHub repository!');
                 }
+            } else if (manual) {
+                alert('Saved locally. To automatically sync updates across all users via GitHub, click "Config Sync" in the top bar to connect your repository.');
             }
 
-            // 4. Sync to Firestore Cloud Backup
+            updateSaveIndicatorUI();
+        }
+
+        function saveTasks(manual = false) {
+            if (!projectsStore[activeProjectId]) return;
+
+            const now = new Date();
+            lastSavedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            projectsStore[activeProjectId] = {
+                id: activeProjectId,
+                name: headerSettings.title || 'Untitled Project',
+                headerSettings: headerSettings,
+                deadline: projectDeadline,
+                tasks: tasks,
+                lastSaved: lastSavedTime
+            };
+
+            // Save to Local Storage as offline fallback
+            localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
+            localStorage.setItem('project_horizon_active_id', activeProjectId);
+
+            // Sync to Firestore Cloud Store so all users see identical updates in real-time
             if (window.db && window.auth) {
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'project-horizon-shared-v1';
                 
@@ -891,22 +1147,6 @@
                 });
             }
             
-            updateSaveIndicatorUI();
-        }
-
-        function loadActiveProjectData() {
-            const proj = projectsStore[activeProjectId];
-            if (!proj) return;
-
-            tasks = proj.tasks || [];
-            headerSettings = proj.headerSettings || { title: proj.name, subtitle: 'Project Schedule', logo: 'fa-list-check' };
-            projectDeadline = proj.deadline || formatDateOffset(20);
-            lastSavedTime = proj.lastSaved || null;
-
-            const deadlineInput = document.getElementById('project-deadline-input');
-            if (deadlineInput) {
-                deadlineInput.value = projectDeadline;
-            }
             updateSaveIndicatorUI();
         }
 
@@ -2392,49 +2632,6 @@
                     tempPath.classList.remove('hidden');
                 }
             }
-        }
-
-        function handleGlobalMouseMove(e) {
-            if (!activeDragMode || !draggedTaskId) return;
-
-            if (activeDragMode === 'connect-dependency') {
-                const tempPath = document.getElementById('temp-drag-path');
-                const svgRect = document.getElementById('dependency-svg')?.getBoundingClientRect();
-                const sourceEl = document.getElementById(`gantt-bar-${draggedTaskId}`);
-
-                if (tempPath && svgRect && sourceEl) {
-                    const sourceRect = sourceEl.getBoundingClientRect();
-                    const startX = sourceRect.right - svgRect.left;
-                    const startY = sourceRect.top + (sourceRect.height / 2) - svgRect.top;
-
-                    const currX = e.clientX - svgRect.left;
-                    const currY = e.clientY - svgRect.top;
-
-                    tempPath.setAttribute('d', `M ${startX} ${startY} L ${currX} ${currY}`);
-                }
-                return;
-            }
-
-            const barEl = document.getElementById(`gantt-bar-${draggedTaskId}`);
-            if (!barEl) return;
-
-            const deltaX = e.clientX - dragStartX;
-
-            if (activeDragMode === 'move') {
-                const newLeft = Math.max(0, originalStartOffset + deltaX);
-                barEl.style.left = `${newLeft}px`;
-            } else if (activeDragMode === 'resize-left') {
-                const newLeft = Math.max(0, originalStartOffset + deltaX);
-                const newWidth = Math.max(DAY_WIDTH, originalBarWidth - deltaX);
-                barEl.style.left = `${newLeft}px`;
-                barEl.style.width = `${newWidth}px`;
-            } else if (activeDragMode === 'resize-right') {
-                const newWidth = Math.max(DAY_WIDTH, originalBarWidth + deltaX);
-                barEl.style.width = `${newWidth}px`;
-            }
-
-            // Dynamically redraw dependency lines during bar movement
-            drawDependencyLines();
         }
 
         function renderHeader() {
