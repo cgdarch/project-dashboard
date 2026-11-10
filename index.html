@@ -990,8 +990,8 @@
                 const branch = githubConfig.branch || 'main';
                 const apiUrl = `https://api.github.com/repos/${githubConfig.repo}/contents/${repoPath}`;
 
-                // Get current file SHA if missing
-                const getRes = await fetch(`${apiUrl}?ref=${branch}`, {
+                // 1. Fetch exact file SHA directly from GitHub API with cache-busting timestamp
+                const getRes = await fetch(`${apiUrl}?ref=${branch}&t=${Date.now()}`, {
                     headers: { 
                         'Authorization': `token ${githubConfig.token}`,
                         'Accept': 'application/vnd.github.v3+json'
@@ -1001,16 +1001,27 @@
                 if (getRes.ok) {
                     const getJson = await getRes.json();
                     githubConfig.sha = getJson.sha;
+                } else if (getRes.status !== 404) {
+                    const errData = await getRes.json();
+                    alert(`GitHub API Error (${getRes.status}): ${errData.message || 'Unable to fetch file metadata.'}`);
+                    return false;
                 }
 
+                // 2. Format project JSON structure
                 const jsonContent = JSON.stringify({
                     lastUpdated: new Date().toISOString(),
                     projectsStore: projectsStore
                 }, null, 2);
 
+                // 3. UTF-8 Base64 encoding for standard browser string representation
                 const utf8Bytes = new TextEncoder().encode(jsonContent);
-                const base64Content = btoa(String.fromCharCode(...utf8Bytes));
+                let binaryStr = '';
+                for (let i = 0; i < utf8Bytes.length; i++) {
+                    binaryStr += String.fromCharCode(utf8Bytes[i]);
+                }
+                const base64Content = btoa(binaryStr);
 
+                // 4. Construct payload for GitHub REST API
                 const bodyPayload = {
                     message: `Update schedule data: ${new Date().toLocaleString()}`,
                     content: base64Content,
@@ -1021,6 +1032,7 @@
                     bodyPayload.sha = githubConfig.sha;
                 }
 
+                // 5. Send commit PUT request
                 const putRes = await fetch(apiUrl, {
                     method: 'PUT',
                     headers: {
@@ -1040,12 +1052,12 @@
                 } else {
                     const errData = await putRes.json();
                     console.error('GitHub API error:', errData);
-                    alert(`GitHub Sync Failed: ${errData.message || 'Check your Personal Access Token and repository permissions.'}`);
+                    alert(`GitHub Commit Failed: ${errData.message || 'Check your token scope and repository rules.'}`);
                     return false;
                 }
             } catch (err) {
                 console.error('GitHub commit error:', err);
-                alert('GitHub Sync Failed: Unable to reach GitHub API. Check network connection.');
+                alert('GitHub Sync Failed: Unable to connect to GitHub API. Check your internet connection.');
                 return false;
             }
         }
