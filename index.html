@@ -990,10 +990,14 @@
                 const branch = githubConfig.branch || 'main';
                 const apiUrl = `https://api.github.com/repos/${githubConfig.repo}/contents/${repoPath}`;
 
-                // 1. Fetch exact file SHA directly from GitHub API with cache-busting timestamp
+                // Clean token string (handles 'ghp_', 'github_pat_', or plain key formats)
+                const cleanToken = githubConfig.token.trim();
+                const authHeader = cleanToken.startsWith('Bearer ') || cleanToken.startsWith('token ') ? cleanToken : `Bearer ${cleanToken}`;
+
+                // 1. Fetch exact file SHA directly from GitHub API
                 const getRes = await fetch(`${apiUrl}?ref=${branch}&t=${Date.now()}`, {
                     headers: { 
-                        'Authorization': `token ${githubConfig.token}`,
+                        'Authorization': authHeader,
                         'Accept': 'application/vnd.github.v3+json'
                     }
                 });
@@ -1023,7 +1027,7 @@
 
                 // 4. Construct payload for GitHub REST API
                 const bodyPayload = {
-                    message: `Update schedule data: ${new Date().toLocaleString()}`,
+                    message: `Update project schedule data: ${new Date().toLocaleString()}`,
                     content: base64Content,
                     branch: branch
                 };
@@ -1036,7 +1040,7 @@
                 const putRes = await fetch(apiUrl, {
                     method: 'PUT',
                     headers: {
-                        'Authorization': `token ${githubConfig.token}`,
+                        'Authorization': authHeader,
                         'Content-Type': 'application/json',
                         'Accept': 'application/vnd.github.v3+json'
                     },
@@ -1052,52 +1056,13 @@
                 } else {
                     const errData = await putRes.json();
                     console.error('GitHub API error:', errData);
-                    alert(`GitHub Commit Failed: ${errData.message || 'Check your token scope and repository rules.'}`);
+                    alert(`GitHub Commit Failed (${putRes.status}): ${errData.message || 'Check your token permissions.'}`);
                     return false;
                 }
             } catch (err) {
                 console.error('GitHub commit error:', err);
-                alert('GitHub Sync Failed: Unable to connect to GitHub API. Check your internet connection.');
+                alert('GitHub Sync Failed: Unable to reach GitHub API. Check network connection.');
                 return false;
-            }
-        }
-
-        function openGitHubConfigModal() {
-            document.getElementById('gh-repo-input').value = githubConfig.repo || '';
-            document.getElementById('gh-branch-input').value = githubConfig.branch || 'main';
-            document.getElementById('gh-path-input').value = githubConfig.path || 'projects.json';
-            document.getElementById('gh-token-input').value = githubConfig.token || '';
-            document.getElementById('github-config-modal').classList.remove('hidden');
-        }
-
-        function closeGitHubConfigModal() {
-            document.getElementById('github-config-modal').classList.add('hidden');
-        }
-
-        function handleGitHubConfigSubmit(e) {
-            e.preventDefault();
-            githubConfig.repo = document.getElementById('gh-repo-input').value.trim();
-            githubConfig.branch = document.getElementById('gh-branch-input').value.trim() || 'main';
-            githubConfig.path = document.getElementById('gh-path-input').value.trim() || 'projects.json';
-            githubConfig.token = document.getElementById('gh-token-input').value.trim();
-            githubConfig.sha = null; // Reset SHA to fetch new file pointer
-
-            localStorage.setItem('project_horizon_gh_config', JSON.stringify(githubConfig));
-            updateGitHubSyncBadge();
-            closeGitHubConfigModal();
-            fetchProjectsFromGitHub();
-        }
-
-        function updateGitHubSyncBadge() {
-            const badge = document.getElementById('github-sync-badge');
-            if (badge) {
-                if (githubConfig.repo && githubConfig.token) {
-                    badge.textContent = 'GH Auto-Sync';
-                    badge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-medium';
-                } else {
-                    badge.textContent = 'Config Sync';
-                    badge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 font-medium';
-                }
             }
         }
 
@@ -1116,18 +1081,18 @@
                 lastSaved: lastSavedTime
             };
 
-            // Save to Local Storage as offline fallback
+            // Save locally in browser cache
             localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
             localStorage.setItem('project_horizon_active_id', activeProjectId);
 
-            // Attempt GitHub REST API commit if configured
+            // Directly commit to GitHub REST API if configured
             if (githubConfig.repo && githubConfig.token) {
                 const committed = await commitProjectsToGitHub();
                 if (committed && manual) {
-                    alert('Successfully saved & committed schedule updates to GitHub repository!');
+                    alert('Successfully saved & committed changes directly to GitHub!');
                 }
             } else if (manual) {
-                alert('Saved locally. To automatically sync updates across all users via GitHub, click "Config Sync" in the top bar to connect your repository.');
+                alert('Saved locally. Click "Config Sync" in the top header to enter your GitHub token for cloud auto-sync.');
             }
 
             updateSaveIndicatorUI();
@@ -2727,6 +2692,55 @@
             }
             renderProjectsHome();
             renderApp();
+        }
+
+        // GitHub Repository Sync UI Handlers
+        function updateGitHubSyncBadge() {
+            const badge = document.getElementById('github-sync-badge');
+            if (!badge) return;
+            if (githubConfig.repo && githubConfig.token) {
+                badge.textContent = 'Connected';
+                badge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-300 font-semibold border border-emerald-700';
+            } else {
+                badge.textContent = 'Config Sync';
+                badge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 font-medium';
+            }
+        }
+
+        function openGitHubConfigModal() {
+            const modal = document.getElementById('github-config-modal');
+            if (!modal) return;
+
+            document.getElementById('gh-repo-input').value = githubConfig.repo || '';
+            document.getElementById('gh-branch-input').value = githubConfig.branch || 'main';
+            document.getElementById('gh-path-input').value = githubConfig.path || 'projects.json';
+            document.getElementById('gh-token-input').value = githubConfig.token || '';
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeGitHubConfigModal() {
+            const modal = document.getElementById('github-config-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function handleGitHubConfigSubmit(e) {
+            e.preventDefault();
+
+            githubConfig.repo = document.getElementById('gh-repo-input').value.trim();
+            githubConfig.branch = document.getElementById('gh-branch-input').value.trim() || 'main';
+            githubConfig.path = document.getElementById('gh-path-input').value.trim() || 'projects.json';
+            githubConfig.token = document.getElementById('gh-token-input').value.trim();
+
+            localStorage.setItem('project_horizon_gh_config', JSON.stringify(githubConfig));
+
+            updateGitHubSyncBadge();
+            closeGitHubConfigModal();
+
+            if (githubConfig.repo && githubConfig.token) {
+                fetchProjectsFromGitHub();
+                alert('GitHub repository configuration saved successfully!');
+            }
         }
 
         function openAuthModal(e) {
