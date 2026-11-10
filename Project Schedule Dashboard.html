@@ -1,0 +1,2574 @@
+<html lang="en" class="h-full bg-slate-100 text-slate-800">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Schedule Dashboard</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase Cloud Storage Integration -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Initialize Firebase with fallback project key for standalone file access
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'project-horizon-shared-v1';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyDemoKeyForPublicGanttStorage",
+            authDomain: "public-gantt-app.firebaseapp.com",
+            projectId: "public-gantt-app",
+            storageBucket: "public-gantt-app.appspot.com",
+            messagingSenderId: "100000000000",
+            appId: "1:100000000000:web:abcdef123456"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.db = getFirestore(app);
+        window.auth = getAuth(app);
+        
+        // Authenticate and subscribe to cloud project changes across all user sessions
+        const initCloudStorage = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(window.auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(window.auth);
+                }
+
+                // Public Firestore path rule: /artifacts/{appId}/public/data/{collectionName}/{documentId}
+                const projectDocRef = doc(window.db, 'artifacts', appId, 'public', 'data', 'projects_store', 'main');
+                
+                // Real-time Cloud Sync Listener
+                onSnapshot(projectDocRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        const data = snapshot.data();
+                        if (data && data.projectsStore) {
+                            window.projectsStore = data.projectsStore;
+                            if (window.loadActiveProjectData) window.loadActiveProjectData();
+                            if (window.renderHeader) window.renderHeader();
+                            if (window.renderApp) window.renderApp();
+                        }
+                    } else {
+                        // Seed initial cloud state if first time
+                        if (window.saveTasks) window.saveTasks(true);
+                    }
+                }, (error) => {
+                    console.warn("Cloud snapshot fallback to local storage:", error);
+                });
+            } catch (err) {
+                console.warn("Cloud Auth Fallback:", err);
+            }
+        };
+        initCloudStorage();
+    </script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        navy: {
+                            800: '#111827',
+                            900: '#0b0f19',
+                            950: '#05070c'
+                        },
+                        brand: {
+                            50: '#fef2f2',
+                            100: '#ffe4e4',
+                            500: '#ef4444',
+                            600: '#dc2626',
+                            700: '#b91c1c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbars for timeline */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .drag-handle-left {
+            cursor: w-resize;
+        }
+        .drag-handle-right {
+            cursor: e-resize;
+        }
+        .gantt-bar-draggable {
+            cursor: move;
+        }
+        .task-row-reorder-handle {
+            cursor: grab;
+        }
+        .task-row-reorder-handle:active {
+            cursor: grabbing;
+        }
+        .drag-reorder-target {
+            border-top: 3px solid #ef4444 !important;
+        }
+        /* Dependency line hover group styles */
+        .dependency-connector-group {
+            cursor: pointer;
+            pointer-events: bounding-box;
+        }
+        .dependency-connector-group:hover path.dep-path {
+            stroke-width: 3px;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans overflow-hidden antialiased bg-slate-100 text-slate-800" onmouseup="handleGlobalMouseUp(event)" onmousemove="handleGlobalMouseMove(event)">
+
+    <!-- Top Navigation Bar (Dark Navy Accent) - Entire bar is clickable to edit header -->
+    <header onclick="openHeaderModal()" class="bg-navy-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0 shadow-md select-none cursor-pointer hover:bg-navy-800/90 transition-colors group" title="Click anywhere on header to edit title, subtitle & logo">
+        <div class="flex items-center space-x-3">
+            <!-- Custom Logo Container -->
+            <div class="relative p-1 rounded-lg border border-red-500/30 bg-red-600/10 group-hover:bg-red-600/20 transition-all flex items-center justify-center min-w-[42px] min-h-[42px]">
+                <div id="header-logo-container">
+                    <i class="fa-solid fa-list-check text-xl text-red-500"></i>
+                </div>
+                <div class="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="fa-solid fa-camera text-xs text-white"></i>
+                </div>
+            </div>
+            <div>
+                <h1 id="header-title" class="text-lg font-bold text-white leading-tight flex items-center space-x-2">
+                    <span>Project Horizon Schedule</span>
+                    <i class="fa-solid fa-pen text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                </h1>
+                <p id="header-subtitle" class="text-xs text-slate-400">Track tasks, dependencies, timeline & calendar</p>
+            </div>
+        </div>
+
+        <!-- Header Actions -->
+        <div class="flex items-center space-x-3" onclick="event.stopPropagation()">
+            <!-- Home Button (Visible when inside a project) -->
+            <button id="header-home-btn" onclick="switchView('home')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs rounded-lg border border-slate-700 transition-all flex items-center space-x-1.5 shadow-sm" title="Return to Projects Portfolio">
+                <i class="fa-solid fa-house text-red-500"></i>
+                <span class="hidden sm:inline">Home</span>
+            </button>
+
+            <!-- Role Badge & Auth Toggle -->
+            <div class="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700 relative z-30 pointer-events-auto" onclick="event.stopPropagation()">
+                <span id="role-badge" class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-700 text-slate-300">
+                    <i class="fa-solid fa-user-gear mr-1 text-[10px]"></i>Guest
+                </span>
+                <button id="auth-btn" type="button" onclick="openAuthModal(event)" class="text-xs font-medium text-red-400 hover:text-red-300 underline underline-offset-2 cursor-pointer z-30 pointer-events-auto">
+                    Admin Sign In
+                </button>
+            </div>
+
+            <!-- Last Saved Indicator -->
+            <div id="save-indicator" class="hidden sm:flex items-center space-x-1.5 text-xs text-slate-400 bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-700/60">
+                <i class="fa-solid fa-cloud-check text-emerald-400 text-xs"></i>
+                <span id="save-timestamp" class="text-[11px] font-medium text-slate-300">Saved</span>
+            </div>
+
+            <!-- Refresh Button (Reloads latest data from projects.json) -->
+            <button onclick="refreshNetworkJSON()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-lg border border-slate-700 shadow-sm transition-all flex items-center space-x-1.5 group" title="Refresh dashboard with latest network data from U:\PBK\Greenville\Arch\2026 Projects\projectData\projects.json">
+                <i class="fa-solid fa-rotate text-red-400 group-hover:rotate-180 transition-transform duration-500"></i>
+                <span>Refresh</span>
+            </button>
+
+            <!-- Single Unified Save Button -->
+            <button onclick="saveTasks(true)" class="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-lg shadow-md transition-all flex items-center space-x-1.5" title="Save changes & write directly to U:\PBK\Greenville\Arch\2026 Projects\projectData\projects.json">
+                <i class="fa-solid fa-floppy-disk text-white"></i>
+                <span>Save</span>
+            </button>
+
+            <button id="header-add-task-btn" onclick="openModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium text-sm rounded-lg border border-slate-700 transition-all flex items-center space-x-2">
+                <i class="fa-solid fa-plus text-red-400"></i>
+                <span>Add Task</span>
+            </button>
+
+            <button id="header-delete-all-btn" onclick="promptDeleteAllTasks()" class="px-3 py-2 bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-medium text-sm rounded-lg border border-rose-800/80 transition-all" title="Delete all tasks">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- 0. PROJECTS HOME HUB VIEW -->
+        <div id="view-home" class="h-full w-full overflow-y-auto bg-slate-100 p-6">
+            <div class="max-w-6xl mx-auto space-y-6">
+                <!-- Welcome Banner -->
+                <div class="bg-navy-900 text-white rounded-2xl p-6 shadow-xl flex items-center justify-between relative overflow-hidden">
+                    <div class="space-y-2 z-10">
+                        <div class="flex items-center space-x-3">
+                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-600/30 text-red-400 border border-red-500/30 uppercase tracking-wider">Multi-Project Management</span>
+                            
+                            <!-- Role Badge & Auth Toggle on Home -->
+                            <div class="flex items-center space-x-2 bg-slate-800/90 px-3 py-1 rounded-lg border border-slate-700 relative z-30 pointer-events-auto" onclick="event.stopPropagation()">
+                                <span id="home-role-badge" class="text-xs font-semibold px-2 py-0.5 rounded bg-slate-700 text-slate-300">
+                                    <i class="fa-solid fa-user-gear mr-1 text-[10px]"></i>Guest
+                                </span>
+                                <button id="home-auth-btn" type="button" onclick="openAuthModal(event)" class="text-xs font-medium text-red-400 hover:text-red-300 underline underline-offset-2 cursor-pointer z-30 pointer-events-auto">
+                                    Admin Sign In
+                                </button>
+                            </div>
+                        </div>
+                        <h2 class="text-2xl font-bold">Projects Portfolio Workspace</h2>
+                        <p class="text-xs text-slate-400 max-w-xl">Select a project below to manage its timeline, dependencies, and schedule, or create a brand new project schedule.</p>
+                    </div>
+                    <button id="home-create-project-btn" onclick="openNewProjectModal()" class="z-10 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl shadow-lg shadow-red-600/30 flex items-center space-x-2 transition-all">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Create New Project</span>
+                    </button>
+                    <i class="fa-solid fa-diagram-project absolute -right-6 -bottom-6 text-9xl text-slate-800/40 pointer-events-none"></i>
+                </div>
+
+                <!-- Projects Grid -->
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Active Projects</h3>
+                    <div id="projects-cards-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Project Cards rendered dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar / Stats & Filters -->
+        <aside id="main-sidebar" class="w-80 bg-slate-200/60 border-r border-slate-300 flex flex-col p-4 space-y-6 overflow-y-auto shrink-0 hidden md:flex">
+            
+            <!-- Summary Stats Widgets -->
+            <div>
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Project Progress</h3>
+                <div class="bg-white border border-slate-300 rounded-xl p-4 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-600 font-medium">Total Completion</span>
+                        <span id="stat-percent" class="font-bold text-red-600">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <div id="stat-progress-bar" class="bg-red-600 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-center">
+                        <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                            <span class="block text-xs text-slate-500">Completed</span>
+                            <span id="stat-completed" class="text-lg font-bold text-emerald-600">0</span>
+                        </div>
+                        <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                            <span class="block text-xs text-slate-500">Pending</span>
+                            <span id="stat-pending" class="text-lg font-bold text-amber-600">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Next Task Due Across Portfolio -->
+                    <div class="pt-3 border-t border-slate-100 space-y-2">
+                        <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200 space-y-1">
+                            <span class="text-slate-500 text-[11px] font-semibold uppercase tracking-wider block">Next Task Due</span>
+                            <div id="next-task-countdown" class="font-bold text-slate-800 text-xs truncate">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search & Filters Section -->
+            <div>
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Filter Tasks</h3>
+                <div class="space-y-3">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                        <input type="text" id="search-input" oninput="renderApp()" placeholder="Search task name or ID..." class="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-red-500 shadow-sm">
+                    </div>
+
+                    <div class="flex items-center space-x-2 px-1">
+                        <input type="checkbox" id="filter-hide-completed" onchange="renderApp()" class="w-3.5 h-3.5 text-red-600 bg-white border-slate-300 rounded focus:ring-red-500 cursor-pointer">
+                        <label for="filter-hide-completed" class="text-xs font-medium text-slate-600 cursor-pointer select-none">Hide Completed Tasks</label>
+                    </div>
+
+                    <div id="category-filter-container" class="space-y-1">
+                        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Category Filter</span>
+                        <div id="category-filters" class="space-y-1">
+                            <!-- Category filter buttons rendered dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main View Area -->
+        <main class="flex-1 flex flex-col overflow-hidden bg-slate-100">
+
+            <!-- Tab Navigation Bar -->
+            <div class="bg-white border-b border-slate-300 px-6 flex items-center justify-between shrink-0 shadow-sm">
+                <div class="flex space-x-1">
+                    <button id="tab-btn-timeline" onclick="switchTab('timeline')" class="px-4 py-3 text-sm font-semibold border-b-2 border-red-600 text-red-600 flex items-center space-x-2 transition-colors">
+                        <i class="fa-solid fa-chart-gantt"></i>
+                        <span>Timeline View</span>
+                    </button>
+                    <button id="tab-btn-calendar" onclick="switchTab('calendar')" class="px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-2 transition-colors">
+                        <i class="fa-solid fa-calendar-days"></i>
+                        <span>Calendar View</span>
+                    </button>
+                    <button id="tab-btn-table" onclick="switchTab('table')" class="px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-2 transition-colors">
+                        <i class="fa-solid fa-table-list"></i>
+                        <span>Task List</span>
+                    </button>
+                </div>
+
+                <!-- View Specific Controls -->
+                <div id="view-controls" class="py-2 flex items-center space-x-2">
+                    <!-- Controls rendered dynamically per view -->
+                </div>
+            </div>
+
+            <!-- View Contents -->
+            <div class="flex-1 overflow-hidden relative">
+
+                <!-- 1. TIMELINE (GANTT) VIEW -->
+                <div id="view-timeline" class="h-full flex flex-col overflow-x-auto overflow-y-auto relative bg-slate-50">
+                    <!-- Timeline header & grid constructed dynamically -->
+                </div>
+
+                <!-- 2. CALENDAR VIEW -->
+                <div id="view-calendar" class="h-full hidden flex flex-col p-4 overflow-y-auto">
+                    <!-- Calendar grid constructed dynamically -->
+                </div>
+
+                <!-- 3. TASK LIST TABLE VIEW -->
+                <div id="view-table" class="h-full hidden overflow-y-auto p-4 relative">
+                    <!-- Floating Bulk Action Toolbar -->
+                    <div id="bulk-toolbar" class="hidden sticky top-0 z-40 mb-3 bg-navy-900 text-white p-3 rounded-xl shadow-xl flex items-center justify-between border border-slate-700 animate-fade-in">
+                        <div class="flex items-center space-x-2 text-xs font-semibold">
+                            <span class="w-5 h-5 rounded-full bg-red-600 flex items-center justify-center text-white text-[10px]" id="bulk-count">0</span>
+                            <span>tasks selected</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <div class="flex items-center space-x-1.5 text-xs">
+                                <span class="text-slate-300">Recategorize to:</span>
+                                <select id="bulk-category-select" class="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-red-500">
+                                    <option value="General">General</option>
+                                    <option value="Drawing">Drawing</option>
+                                    <option value="Life Safety">Life Safety</option>
+                                    <option value="Modeling">Modeling</option>
+                                    <option value="Coordination">Coordination</option>
+                                </select>
+                                <button onclick="applyBulkRecategorize()" class="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded font-medium text-xs">Apply</button>
+                            </div>
+                            <div class="h-4 w-px bg-slate-700"></div>
+                            <button onclick="applyBulkDelete()" class="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-xs flex items-center space-x-1">
+                                <i class="fa-solid fa-trash-can text-[10px]"></i>
+                                <span>Delete Selected</span>
+                            </button>
+                            <button onclick="clearBulkSelection()" class="text-slate-400 hover:text-white text-xs ml-2">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <table class="w-full text-left border-collapse bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <thead class="bg-slate-100 border-b border-slate-300 text-slate-600 text-xs uppercase tracking-wider font-semibold">
+                            <tr>
+                                <th class="py-3 px-3 w-10 text-center">
+                                    <input type="checkbox" id="select-all-table" onchange="toggleSelectAllTable(this.checked)" class="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500 cursor-pointer">
+                                </th>
+                                <th class="py-3 px-3 w-10 text-center">Done</th>
+                                <th class="py-3 px-4 w-28">ID</th>
+                                <th class="py-3 px-4">Task Description</th>
+                                <th class="py-3 px-4 w-36">Category</th>
+                                <th class="py-3 px-4 w-32">Due Date</th>
+                                <th class="py-3 px-4 w-40">Dependencies</th>
+                                <th class="py-3 px-4 w-28 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="task-table-body" class="divide-y divide-slate-200 text-sm">
+                            <!-- Rows rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Top-Level Admin Authentication Modal -->
+    <div id="auth-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-navy-950/80 backdrop-blur-md hidden" onclick="if(event.target === this) closeAuthModal()">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-sm p-6 shadow-2xl relative z-[10000]" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                    <i class="fa-solid fa-shield-halved text-red-600"></i>
+                    <span>Admin Authentication</span>
+                </h3>
+                <button type="button" onclick="closeAuthModal()" class="text-slate-400 hover:text-slate-700 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAuthSubmit(event)" class="mt-4 space-y-4">
+                <div id="auth-error" class="hidden bg-red-50 text-red-600 text-xs p-2.5 rounded-lg border border-red-200 font-medium"></div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Username</label>
+                    <input type="text" id="auth-username" required placeholder="Enter username" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password</label>
+                    <input type="password" id="auth-password" required placeholder="••••••••" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200">
+                    <button type="button" onclick="closeAuthModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Sign In</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- New Project Modal -->
+    <div id="new-project-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                    <i class="fa-solid fa-folder-plus text-red-600"></i>
+                    <span>Create New Project Workspace</span>
+                </h3>
+                <button onclick="closeNewProjectModal()" class="text-slate-400 hover:text-slate-700">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form onsubmit="handleCreateProjectSubmit(event)" class="mt-4 space-y-4 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-600 uppercase mb-1">Project Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="new-project-name" required placeholder="e.g. Commercial Office BIM Model" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-600 uppercase mb-1">Subtitle / Scope</label>
+                    <input type="text" id="new-project-subtitle" placeholder="e.g. Architectural & MEP Coordination Phase 1" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-600 uppercase mb-1">Target Completion Deadline</label>
+                    <input type="date" id="new-project-deadline" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div class="flex items-center space-x-2 pt-2">
+                    <input type="checkbox" id="new-project-sample" checked class="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500 cursor-pointer">
+                    <label for="new-project-sample" class="text-xs font-medium text-slate-700">Populate with starter task templates</label>
+                </div>
+                <div class="flex justify-end space-x-2 pt-4 border-t border-slate-200">
+                    <button type="button" onclick="closeNewProjectModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Create Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Authentication Modal -->
+    <div id="auth-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-sm p-6 shadow-2xl relative">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                    <i class="fa-solid fa-shield-halved text-red-600"></i>
+                    <span>Admin Authentication</span>
+                </h3>
+                <button onclick="closeAuthModal()" class="text-slate-400 hover:text-slate-700">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAuthSubmit(event)" class="mt-4 space-y-4">
+                <div id="auth-error" class="hidden bg-red-50 text-red-600 text-xs p-2.5 rounded-lg border border-red-200 font-medium"></div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Username</label>
+                    <input type="text" id="auth-username" required placeholder="Enter username" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password</label>
+                    <input type="password" id="auth-password" required placeholder="••••••••" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                </div>
+                <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200">
+                    <button type="button" onclick="closeAuthModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Sign In</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Task Modal (Add/Edit) -->
+    <div id="task-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-md p-6 shadow-2xl relative transform transition-all">
+            <div class="flex justify-between items-center pb-4 border-b border-slate-200">
+                <h3 id="modal-title" class="text-lg font-bold text-navy-900">Add New Task</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="task-form" onsubmit="handleFormSubmit(event)" class="mt-4 space-y-4">
+                <input type="hidden" id="task-id">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Task Description</label>
+                    <input type="text" id="form-description" required placeholder="e.g. Design Landing Page" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Start Date <span class="text-slate-400 font-normal">(Optional)</span></label>
+                        <input type="date" id="form-start-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Due Date <span class="text-red-500">*</span></label>
+                        <input type="date" id="form-due-date" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Category</label>
+                    <select id="form-category" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                        <option value="General">General</option>
+                        <option value="Drawing">Drawing</option>
+                        <option value="Life Safety">Life Safety</option>
+                        <option value="Modeling">Modeling</option>
+                        <option value="Coordination">Coordination</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Dependencies (Prerequisites)</label>
+                    <div id="dependencies-selector" class="max-h-32 overflow-y-auto bg-slate-50 border border-slate-300 rounded-lg p-2 space-y-1">
+                        <!-- Dynamic checkboxes injected here -->
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 pt-2">
+                    <input type="checkbox" id="form-completed" class="w-4 h-4 text-red-600 bg-white border-slate-300 rounded focus:ring-red-500 cursor-pointer">
+                    <label for="form-completed" class="text-sm font-medium text-slate-700">Mark as Completed</label>
+                </div>
+
+                <div class="flex items-center justify-between pt-4 border-t border-slate-200">
+                    <div>
+                        <button type="button" id="copy-task-btn" onclick="copyCurrentTask()" class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium border border-slate-300 flex items-center space-x-1.5 hidden">
+                            <i class="fa-solid fa-copy text-slate-500"></i>
+                            <span>Copy Task</span>
+                        </button>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium">Cancel</button>
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium shadow-md">Save Task</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dependency Shift Warning Modal -->
+    <div id="dependency-shift-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-md p-5 shadow-2xl relative">
+            <div class="text-center">
+                <div class="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3 text-xl">
+                    <i class="fa-solid fa-link-slash"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-900 mb-1">Shift Dependent Tasks?</h3>
+                <p class="text-xs text-slate-600 mb-4" id="dependency-shift-msg">
+                    This task has dependent downstream tasks. Moving it by <span id="shift-days-count" class="font-bold text-red-600">0</span> days can automatically reschedule those tasks as well.
+                </p>
+                <div class="space-y-2">
+                    <button onclick="confirmCascadeShift(true)" class="w-full py-2 px-4 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-md flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-arrows-left-right-to-line"></i>
+                        <span>Shift Dependent Tasks Equivalent Days</span>
+                    </button>
+                    <button onclick="confirmCascadeShift(false)" class="w-full py-2 px-4 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold">
+                        <span>Keep Dependent Tasks Unchanged</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete All Tasks Warning Modal -->
+    <div id="delete-all-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-sm p-5 shadow-2xl relative">
+            <div class="text-center">
+                <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3 text-xl">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-900 mb-1">Delete ALL Tasks?</h3>
+                <p class="text-xs text-slate-500 mb-5">Are you sure you want to delete all tasks in the project? This action cannot be undone.</p>
+                <div class="flex justify-center space-x-3">
+                    <button onclick="closeDeleteAllModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
+                    <button onclick="confirmDeleteAllTasks()" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium shadow-md">Delete All</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Guest Task Details View Modal -->
+    <div id="view-task-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+                <div class="flex items-center space-x-2">
+                    <span id="guest-view-number" class="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">--</span>
+                    <h3 class="text-base font-bold text-slate-900">Task Details</h3>
+                </div>
+                <button onclick="closeGuestViewModal()" class="text-slate-400 hover:text-slate-700">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="mt-4 space-y-4 text-xs">
+                <div>
+                    <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Description</span>
+                    <p id="guest-view-description" class="text-slate-800 text-sm font-semibold mt-0.5"></p>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                    <div>
+                        <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Category</span>
+                        <span id="guest-view-category" class="inline-block mt-1 font-medium px-2 py-0.5 rounded-full border">--</span>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</span>
+                        <span id="guest-view-status" class="inline-block mt-1 font-semibold">--</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                    <div>
+                        <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Start Date</span>
+                        <span id="guest-view-start" class="text-slate-700 font-medium mt-0.5 block">--</span>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Due Date</span>
+                        <span id="guest-view-due" class="text-slate-700 font-medium mt-0.5 block">--</span>
+                    </div>
+                </div>
+                <div class="pt-2 border-t border-slate-100">
+                    <span class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Dependencies</span>
+                    <div id="guest-view-deps" class="flex flex-wrap gap-1">--</div>
+                </div>
+            </div>
+            <div class="flex justify-end pt-4 border-t border-slate-200 mt-4">
+                <button onclick="closeGuestViewModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application JavaScript Logic -->
+    <script>
+        // Sample Initial Data Setup
+        const SAMPLE_HEADER = {
+            title: 'Project Horizon Schedule',
+            subtitle: 'Track tasks, dependencies, timeline & calendar',
+            logo: 'fa-list-check'
+        };
+
+        const ALLOWED_CATEGORIES = ['General', 'Drawing', 'Life Safety', 'Modeling', 'Coordination'];
+
+        const CATEGORY_PREFIXES = {
+            'General': 'G',
+            'Drawing': 'DR',
+            'Life Safety': 'LS',
+            'Modeling': 'M',
+            'Coordination': 'CO'
+        };
+
+        const DAY_WIDTH = 40;
+
+        // Global Interactive State Variables
+        let activeDragMode = null; // 'move', 'resize-left', 'resize-right', 'connect-dependency'
+        let draggedTaskId = null;
+        let dragStartX = 0;
+        let originalStartOffset = 0;
+        let originalBarWidth = 0;
+        let timelineMinDate = null;
+        let pendingShiftData = null;
+
+        const SAMPLE_TASKS = [
+            { id: 1, taskNumber: 'G-01', category: 'General', description: 'Project Scope & Initial Requirements', startDate: formatDateOffset(-7), dueDate: formatDateOffset(-4), dependencies: [], completed: true },
+            { id: 2, taskNumber: 'DR-01', category: 'Drawing', description: 'Architectural Base Layout Drawings', startDate: formatDateOffset(-4), dueDate: formatDateOffset(-1), dependencies: [1], completed: true },
+            { id: 3, taskNumber: 'LS-01', category: 'Life Safety', description: 'Egress & Life Safety Compliance Review', startDate: formatDateOffset(-2), dueDate: formatDateOffset(2), dependencies: [1], completed: false },
+            { id: 4, taskNumber: 'M-01', category: 'Modeling', description: '3D Building Information Model (BIM)', startDate: formatDateOffset(2), dueDate: formatDateOffset(6), dependencies: [2, 3], completed: false },
+            { id: 5, taskNumber: 'CO-01', category: 'Coordination', description: 'MEP Systems Spatial Coordination', startDate: formatDateOffset(3), dueDate: formatDateOffset(8), dependencies: [4], completed: false },
+            { id: 6, taskNumber: 'DR-02', category: 'Drawing', description: 'Final Construction Documentation Set', startDate: formatDateOffset(8), dueDate: formatDateOffset(12), dependencies: [5], completed: false },
+        ];
+
+        const CATEGORY_COLORS = {
+            'General': { bg: 'bg-slate-200', text: 'text-slate-800', border: 'border-slate-300', badge: 'bg-slate-300 text-slate-800' },
+            'Drawing': { bg: 'bg-indigo-100', text: 'text-indigo-900', border: 'border-indigo-300', badge: 'bg-indigo-200 text-indigo-900' },
+            'Life Safety': { bg: 'bg-pink-100', text: 'text-pink-900', border: 'border-pink-300', badge: 'bg-pink-200 text-pink-900' },
+            'Modeling': { bg: 'bg-cyan-100', text: 'text-cyan-900', border: 'border-cyan-300', badge: 'bg-cyan-200 text-cyan-900' },
+            'Coordination': { bg: 'bg-amber-100', text: 'text-amber-900', border: 'border-amber-300', badge: 'bg-amber-200 text-amber-900' },
+            'Default': { bg: 'bg-slate-200', text: 'text-slate-800', border: 'border-slate-300', badge: 'bg-slate-300 text-slate-800' }
+        };
+
+        // Multi-Project State Store
+        let projectsStore = {};
+        let activeProjectId = 'default-project';
+
+        // Role Management State
+        let currentUserRole = 'guest'; // 'guest' or 'admin'
+
+        // Current Active Project State References
+        let tasks = [];
+        let headerSettings = { ...SAMPLE_HEADER };
+        let projectDeadline = formatDateOffset(20);
+        let activeView = 'timeline'; // 'home', 'timeline', 'calendar', 'table'
+        let currentTab = 'timeline';
+        let activeCategoryFilters = ['ALL'];
+        let currentCalendarDate = new Date();
+        let lastSavedTime = null;
+        let selectedTaskIds = [];
+        // Local Server Sync & Target Network Folder Memory
+        const NETWORK_DIRECTORY_PATH = "U:\\PBK\\Greenville\\Arch\\2026 Projects\\projectData";
+        const LOCAL_SERVER_API = "http://localhost:3000/api/projects";
+        let localFileHandle = null;
+
+        async function initApp() {
+            const savedProjects = localStorage.getItem('project_horizon_all_projects');
+            const savedActiveId = localStorage.getItem('project_horizon_active_id');
+
+            if (savedProjects) {
+                try {
+                    projectsStore = JSON.parse(savedProjects);
+                } catch (e) {
+                    projectsStore = {};
+                }
+            }
+
+            // Create default starter project if store is empty
+            if (Object.keys(projectsStore).length === 0) {
+                projectsStore['default-project'] = {
+                    id: 'default-project',
+                    name: 'Project Horizon Schedule',
+                    headerSettings: { ...SAMPLE_HEADER },
+                    deadline: formatDateOffset(20),
+                    tasks: [...SAMPLE_TASKS],
+                    lastSaved: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                };
+            }
+
+            activeProjectId = savedActiveId && projectsStore[savedActiveId] ? savedActiveId : Object.keys(projectsStore)[0];
+            loadActiveProjectData();
+
+            // Automatic Network JSON Sync on Startup
+            await autoLoadNetworkJSON();
+
+            renderHeader();
+            renderCategoryFilterList();
+            updateRoleUI();
+            switchView('home');
+        }
+
+        // Auto-load JSON from target network folder or server endpoint on app open
+        async function autoLoadNetworkJSON() {
+            try {
+                // 1. Fetch from relative path or mapped directory endpoint
+                const relResponse = await fetch('projects.json', { cache: 'no-cache' });
+                if (relResponse.ok) {
+                    const data = await relResponse.json();
+                    if (data && data.projectsStore) {
+                        projectsStore = data.projectsStore;
+                        loadActiveProjectData();
+                        return true;
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                // 2. Try local server API if active on local machine
+                const response = await fetch(LOCAL_SERVER_API, { cache: 'no-cache' });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.projectsStore) {
+                        projectsStore = data.projectsStore;
+                        loadActiveProjectData();
+                        return true;
+                    }
+                }
+            } catch (e) {}
+            return false;
+        }
+
+        // Manual Refresh Handler
+        async function refreshNetworkJSON() {
+            const refreshed = await autoLoadNetworkJSON();
+            renderHeader();
+            renderApp();
+            if (activeView === 'home') renderProjectsHome();
+
+            // Brief visual notification
+            const saveInd = document.getElementById('save-indicator');
+            const stampEl = document.getElementById('save-timestamp');
+            if (saveInd && stampEl) {
+                const prevText = stampEl.textContent;
+                stampEl.textContent = refreshed ? 'Refreshed from JSON!' : 'Checked for updates';
+                saveInd.classList.remove('hidden');
+                setTimeout(() => {
+                    stampEl.textContent = prevText;
+                }, 2500);
+            }
+        }
+
+        async function saveTasks(manual = false) {
+            if (!projectsStore[activeProjectId]) return;
+
+            const now = new Date();
+            lastSavedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            projectsStore[activeProjectId] = {
+                id: activeProjectId,
+                name: headerSettings.title || 'Untitled Project',
+                headerSettings: headerSettings,
+                deadline: projectDeadline,
+                tasks: tasks,
+                lastSaved: lastSavedTime
+            };
+
+            const jsonPayload = JSON.stringify({
+                exportDate: new Date().toISOString(),
+                targetDirectory: NETWORK_DIRECTORY_PATH,
+                projectsStore: projectsStore
+            }, null, 2);
+
+            // 1. Save to Local Storage as browser fallback
+            localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
+            localStorage.setItem('project_horizon_active_id', activeProjectId);
+
+            // 2. POST to local network server endpoint if running
+            try {
+                fetch(LOCAL_SERVER_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: jsonPayload
+                }).catch(() => {});
+            } catch (err) {}
+
+            // 3. Save directly to file in U:\PBK\Greenville\Arch\2026 Projects\projectData\projects.json
+            if (manual) {
+                try {
+                    if (window.showSaveFilePicker) {
+                        if (!localFileHandle) {
+                            localFileHandle = await window.showSaveFilePicker({
+                                suggestedName: 'projects.json',
+                                types: [{
+                                    description: 'Project Data JSON File',
+                                    accept: { 'application/json': ['.json'] }
+                                }]
+                            });
+                        }
+                        const writable = await localFileHandle.createWritable();
+                        await writable.write(jsonPayload);
+                        await writable.close();
+                    } else {
+                        // Fallback trigger standard file download
+                        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonPayload);
+                        const downloadAnchor = document.createElement('a');
+                        downloadAnchor.setAttribute("href", dataStr);
+                        downloadAnchor.setAttribute("download", "projects.json");
+                        document.body.appendChild(downloadAnchor);
+                        downloadAnchor.click();
+                        downloadAnchor.remove();
+                    }
+                } catch (fileErr) {
+                    // User closed picker or canceled dialog
+                }
+            }
+
+            // 4. Sync to Firestore Cloud Backup
+            if (window.db && window.auth) {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'project-horizon-shared-v1';
+                
+                import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js").then(({ doc, setDoc }) => {
+                    const projectDocRef = doc(window.db, 'artifacts', appId, 'public', 'data', 'projects_store', 'main');
+                    setDoc(projectDocRef, { projectsStore: projectsStore }, { merge: true }).catch(err => {
+                        console.error("Error broadcasting to cloud database:", err);
+                    });
+                });
+            }
+            
+            updateSaveIndicatorUI();
+        }
+
+        function loadActiveProjectData() {
+            const proj = projectsStore[activeProjectId];
+            if (!proj) return;
+
+            tasks = proj.tasks || [];
+            headerSettings = proj.headerSettings || { title: proj.name, subtitle: 'Project Schedule', logo: 'fa-list-check' };
+            projectDeadline = proj.deadline || formatDateOffset(20);
+            lastSavedTime = proj.lastSaved || null;
+
+            const deadlineInput = document.getElementById('project-deadline-input');
+            if (deadlineInput) {
+                deadlineInput.value = projectDeadline;
+            }
+            updateSaveIndicatorUI();
+        }
+
+        function switchActiveProject(projId) {
+            if (!projectsStore[projId]) return;
+            activeProjectId = projId;
+            loadActiveProjectData();
+            renderHeader();
+            renderApp();
+        }
+
+        function switchView(view) {
+            activeView = view;
+            const topHeader = document.querySelector('header');
+            const homeView = document.getElementById('view-home');
+            const sidebar = document.getElementById('main-sidebar');
+            const homeBtn = document.getElementById('header-home-btn');
+            const catFilterContainer = document.getElementById('category-filter-container');
+
+            if (view === 'home') {
+                if (topHeader) topHeader.classList.add('hidden'); // Hide top header on Home
+                homeView.classList.remove('hidden');
+                sidebar.classList.remove('hidden'); // Show portfolio sidebar statistics
+                if (homeBtn) homeBtn.classList.add('hidden');
+                if (catFilterContainer) catFilterContainer.classList.add('hidden'); // Hide category filters on Home
+                renderProjectsHome();
+                updateStats();
+            } else {
+                if (topHeader) topHeader.classList.remove('hidden'); // Show top header inside project view
+                homeView.classList.add('hidden');
+                sidebar.classList.remove('hidden');
+                if (homeBtn) homeBtn.classList.remove('hidden');
+                if (catFilterContainer) catFilterContainer.classList.remove('hidden'); // Show category filters inside project view
+                switchTab(view);
+            }
+        }
+
+        function renderProjectsHome() {
+            const grid = document.getElementById('projects-cards-grid');
+            if (!grid) return;
+
+            let html = '';
+            Object.values(projectsStore).forEach(proj => {
+                const projTasks = proj.tasks || [];
+                const completed = projTasks.filter(t => t.completed).length;
+                const total = projTasks.length;
+                const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+                const isActive = proj.id === activeProjectId;
+
+                html += `
+                    <div class="bg-white border ${isActive ? 'border-red-500 ring-2 ring-red-500/20 shadow-md' : 'border-slate-200'} rounded-2xl p-5 flex flex-col justify-between hover:shadow-lg transition-all group">
+                        <div>
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-center space-x-2">
+                                    <div class="p-2 rounded-xl bg-red-50 border border-red-200 text-red-600">
+                                        <i class="fa-solid fa-folder-open text-base"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-slate-900 text-sm group-hover:text-red-600 transition-colors">${proj.name}</h4>
+                                        <p class="text-[11px] text-slate-400">${proj.headerSettings?.subtitle || 'Task Schedule'}</p>
+                                    </div>
+                                </div>
+                                ${isActive ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Active</span>` : ''}
+                            </div>
+
+                            <div class="space-y-2 mt-4">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span class="text-slate-500">Progress</span>
+                                    <span class="text-red-600">${percent}%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                                    <div class="bg-red-600 h-2 rounded-full" style="width: ${percent}%"></div>
+                                </div>
+                                <div class="flex justify-between text-[11px] text-slate-500 pt-1">
+                                    <span>${total} total tasks</span>
+                                    <span>Target: ${proj.deadline ? formatDateString(proj.deadline) : 'None'}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
+                            <span class="text-[10px] text-slate-400">Last saved ${proj.lastSaved || 'recently'}</span>
+                            <div class="flex space-x-2">
+                                ${currentUserRole === 'admin' ? `
+                                <button onclick="deleteProject('${proj.id}', event)" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100" title="Delete Project">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                                ` : ''}
+                                <button onclick="switchActiveProject('${proj.id}'); switchView('timeline');" class="px-3 py-1.5 bg-slate-900 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition-colors">
+                                    Open Dashboard
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            grid.innerHTML = html;
+
+            // Toggle admin create button on home
+            const createBtn = document.getElementById('home-create-project-btn');
+            if (createBtn) {
+                if (currentUserRole === 'admin') createBtn.classList.remove('hidden');
+                else createBtn.classList.add('hidden');
+            }
+        }
+
+        function openNewProjectModal() {
+            if (currentUserRole !== 'admin') return;
+            const modal = document.getElementById('new-project-modal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeNewProjectModal() {
+            const modal = document.getElementById('new-project-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function handleCreateProjectSubmit(e) {
+            e.preventDefault();
+            if (currentUserRole !== 'admin') return;
+
+            const name = document.getElementById('new-project-name').value.trim();
+            const subtitle = document.getElementById('new-project-subtitle').value.trim() || 'Project Schedule Dashboard';
+            const deadline = document.getElementById('new-project-deadline').value || formatDateOffset(30);
+            const useSample = document.getElementById('new-project-sample').checked;
+
+            const newId = `project-${Date.now()}`;
+            projectsStore[newId] = {
+                id: newId,
+                name: name,
+                headerSettings: { title: name, subtitle: subtitle, logo: 'fa-list-check' },
+                deadline: deadline,
+                tasks: useSample ? [...SAMPLE_TASKS] : [],
+                lastSaved: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            closeNewProjectModal();
+            switchActiveProject(newId);
+            switchView('timeline');
+            saveTasks();
+        }
+
+        function deleteProject(projId, e) {
+            if (e) e.stopPropagation();
+            if (currentUserRole !== 'admin') return;
+            if (Object.keys(projectsStore).length <= 1) {
+                alert('Cannot delete the only remaining project workspace.');
+                return;
+            }
+
+            delete projectsStore[projId];
+            if (activeProjectId === projId) {
+                activeProjectId = Object.keys(projectsStore)[0];
+                loadActiveProjectData();
+            }
+
+            saveTasks();
+            renderProjectsHome();
+        }
+
+        // Filter & Category Handlers
+        function renderCategoryFilterList() {
+            const container = document.getElementById('category-filters');
+            if (!container) return;
+
+            let html = `
+                <button onclick="toggleCategoryFilter('ALL')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${activeCategoryFilters.includes('ALL') ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}">
+                    <span>All Categories</span>
+                    <i class="fa-solid ${activeCategoryFilters.includes('ALL') ? 'fa-square-check' : 'fa-square'} text-[11px] opacity-80"></i>
+                </button>
+            `;
+
+            ALLOWED_CATEGORIES.forEach(cat => {
+                const isSelected = activeCategoryFilters.includes(cat);
+                const color = CATEGORY_COLORS[cat] || CATEGORY_COLORS['Default'];
+                html += `
+                    <button onclick="toggleCategoryFilter('${cat}')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between border transition-all ${isSelected ? 'bg-slate-800 text-white border-slate-700 shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'}">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full ${color.bg.replace('bg-', 'bg-')} border ${color.border}"></span>
+                            <span>${cat}</span>
+                        </div>
+                        <i class="fa-solid ${isSelected ? 'fa-square-check text-red-400' : 'fa-square text-slate-300'} text-[11px]"></i>
+                    </button>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function toggleCategoryFilter(category) {
+            if (category === 'ALL') {
+                activeCategoryFilters = ['ALL'];
+            } else {
+                if (activeCategoryFilters.includes('ALL')) {
+                    activeCategoryFilters = [category];
+                } else {
+                    if (activeCategoryFilters.includes(category)) {
+                        activeCategoryFilters = activeCategoryFilters.filter(c => c !== category);
+                        if (activeCategoryFilters.length === 0) activeCategoryFilters = ['ALL'];
+                    } else {
+                        activeCategoryFilters.push(category);
+                    }
+                }
+            }
+            renderCategoryFilterList();
+            renderApp();
+        }
+
+        function getFilteredTasks() {
+            const searchVal = (document.getElementById('search-input')?.value || '').toLowerCase();
+            const hideCompleted = document.getElementById('filter-hide-completed')?.checked || false;
+
+            return tasks.filter(t => {
+                if (hideCompleted && t.completed) return false;
+                if (!activeCategoryFilters.includes('ALL') && !activeCategoryFilters.includes(t.category)) return false;
+                if (searchVal) {
+                    const matchName = (t.description || '').toLowerCase().includes(searchVal);
+                    const matchNum = (t.taskNumber || '').toLowerCase().includes(searchVal);
+                    if (!matchName && !matchNum) return false;
+                }
+                return true;
+            });
+        }
+
+        // General App Render Switcher
+        function renderApp() {
+            updateStats();
+            if (currentTab === 'timeline') renderTimeline();
+            else if (currentTab === 'calendar') renderCalendar();
+            else if (currentTab === 'table') renderTable();
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            ['timeline', 'calendar', 'table'].forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                const view = document.getElementById(`view-${t}`);
+                if (t === tab) {
+                    btn.className = 'px-4 py-3 text-sm font-semibold border-b-2 border-red-600 text-red-600 flex items-center space-x-2 transition-colors';
+                    view.classList.remove('hidden');
+                } else {
+                    btn.className = 'px-4 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center space-x-2 transition-colors';
+                    view.classList.add('hidden');
+                }
+            });
+            renderApp();
+        }
+
+        // Stats Computation
+        function updateStats() {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            const pending = total - completed;
+            const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+            document.getElementById('stat-percent').textContent = `${percent}%`;
+            document.getElementById('stat-progress-bar').style.width = `${percent}%`;
+            document.getElementById('stat-completed').textContent = completed;
+            document.getElementById('stat-pending').textContent = pending;
+
+            // Countdown calculation
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            if (projectDeadline) {
+                const pDate = new Date(projectDeadline + 'T00:00:00');
+                const diffDays = Math.ceil((pDate - today) / (1000 * 60 * 60 * 24));
+                const cdEl = document.getElementById('project-countdown');
+                if (diffDays < 0) cdEl.textContent = `${Math.abs(diffDays)}d overdue`;
+                else cdEl.textContent = `${diffDays} days left`;
+            }
+
+            // Next Task Due
+            const pendingTasks = tasks.filter(t => !t.completed && t.dueDate).sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+            const nextEl = document.getElementById('next-task-countdown');
+            if (pendingTasks.length > 0) {
+                const nDate = new Date(pendingTasks[0].dueDate + 'T00:00:00');
+                const nDiff = Math.ceil((nDate - today) / (1000 * 60 * 60 * 24));
+                if (nDiff < 0) nextEl.textContent = `${pendingTasks[0].taskNumber} (${Math.abs(nDiff)}d overdue)`;
+                else if (nDiff === 0) nextEl.textContent = `${pendingTasks[0].taskNumber} (Due Today)`;
+                else nextEl.textContent = `${pendingTasks[0].taskNumber} (${nDiff} days)`;
+            } else {
+                nextEl.textContent = 'None';
+            }
+        }
+
+        // TIMELINE (GANTT) RENDER ENGINE
+        function renderTimeline() {
+            const container = document.getElementById('view-timeline');
+            if (!container) return;
+
+            const filtered = getFilteredTasks();
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="p-8 text-center text-slate-400 font-medium">No tasks found matching your filters.</div>`;
+                return;
+            }
+
+            // Calculate date range across all tasks
+            let minD = new Date();
+            let maxD = new Date();
+            tasks.forEach(t => {
+                const s = new Date((t.startDate || t.dueDate) + 'T00:00:00');
+                const d = new Date(t.dueDate + 'T00:00:00');
+                if (s < minD) minD = s;
+                if (d > maxD) maxD = d;
+            });
+
+            // Add padding days
+            minD.setDate(minD.getDate() - 3);
+            maxD.setDate(maxD.getDate() + 7);
+            minD.setHours(0,0,0,0);
+            maxD.setHours(0,0,0,0);
+            timelineMinDate = new Date(minD);
+
+            const totalDays = Math.max(14, Math.ceil((maxD - minD) / (1000 * 60 * 60 * 24)));
+            const daysHeader = [];
+            const curr = new Date(minD);
+
+            for (let i = 0; i < totalDays; i++) {
+                const isToday = curr.toDateString() === new Date().toDateString();
+                const isWeekend = curr.getDay() === 0 || curr.getDay() === 6;
+                daysHeader.push({
+                    dateStr: curr.toISOString().split('T')[0],
+                    dayNum: curr.getDate(),
+                    monthShort: curr.toLocaleDateString('en-US', { month: 'short' }),
+                    isToday,
+                    isWeekend
+                });
+                curr.setDate(curr.getDate() + 1);
+            }
+
+            let html = `
+                <div class="relative min-w-max select-none pb-12">
+                    <!-- Date Headers -->
+                    <div class="flex border-b border-slate-300 bg-white sticky top-0 z-30 shadow-sm">
+                        <div class="w-72 shrink-0 p-3 bg-slate-100 border-r border-slate-300 font-bold text-xs uppercase tracking-wider text-slate-600 flex items-center justify-between">
+                            <span>Task & Category</span>
+                            <span class="text-[10px] text-slate-400 font-normal">(${filtered.length} tasks)</span>
+                        </div>
+                        <div class="flex">
+            `;
+
+            daysHeader.forEach(d => {
+                html += `
+                    <div class="w-[40px] shrink-0 border-r border-slate-200 py-2 text-center ${d.isToday ? 'bg-red-50 text-red-600 font-bold' : d.isWeekend ? 'bg-slate-100 text-slate-400' : 'text-slate-600'}">
+                        <div class="text-[9px] uppercase">${d.monthShort}</div>
+                        <div class="text-xs font-semibold">${d.dayNum}</div>
+                    </div>
+                `;
+            });
+
+            html += `
+                        </div>
+                    </div>
+
+                    <!-- SVG Container for Dependency Lines -->
+                    <svg id="dependency-svg" class="absolute left-72 top-11 w-[${totalDays * DAY_WIDTH}px] h-full pointer-events-none z-10">
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626" />
+                            </marker>
+                            <marker id="arrow-completed" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                                <path d="M 0 0 L 10 5 L 0 10 z" fill="#059669" />
+                            </marker>
+                        </defs>
+                        <g id="dependency-paths-group"></g>
+                        <path id="temp-drag-path" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 2" fill="none" class="hidden" />
+                    </svg>
+
+                    <!-- Task Rows -->
+                    <div class="divide-y divide-slate-200 bg-white" id="timeline-rows-container">
+            `;
+
+            filtered.forEach((task, index) => {
+                const sDate = new Date((task.startDate || task.dueDate) + 'T00:00:00');
+                const dDate = new Date(task.dueDate + 'T00:00:00');
+                
+                const startOffsetDays = Math.max(0, Math.round((sDate - minD) / (1000 * 60 * 60 * 24)));
+                const durationDays = Math.max(1, Math.round((dDate - sDate) / (1000 * 60 * 60 * 24)) + 1);
+
+                const leftPx = startOffsetDays * DAY_WIDTH;
+                const widthPx = durationDays * DAY_WIDTH;
+                const catColor = CATEGORY_COLORS[task.category] || CATEGORY_COLORS['Default'];
+
+                const isAdmin = currentUserRole === 'admin';
+
+                html += `
+                    <div class="flex items-center h-12 hover:bg-slate-50 transition-colors group relative" data-task-id="${task.id}" data-row-index="${index}" ondragover="handleTaskRowDragOver(event, ${task.id})" ondragleave="handleTaskRowDragLeave(event, ${task.id})" ondrop="handleTaskRowDrop(event, ${task.id})">
+                        <!-- Task Info Left Column -->
+                        <div class="w-72 shrink-0 px-3 border-r border-slate-300 flex items-center justify-between z-20 bg-white group-hover:bg-slate-50">
+                            <div class="flex items-center space-x-2 truncate pr-1">
+                                ${isAdmin ? `
+                                <div class="task-row-reorder-handle text-slate-300 hover:text-slate-600 px-0.5" draggable="true" ondragstart="startTaskRowDrag(event, ${task.id})" title="Drag to reorder task vertically">
+                                    <i class="fa-solid fa-grip-vertical text-xs"></i>
+                                </div>
+                                ` : ''}
+                                <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTaskComplete(${task.id})" class="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500 cursor-pointer">
+                                <span class="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 cursor-pointer ${isAdmin ? 'task-row-reorder-handle' : ''}" draggable="${isAdmin}" ondragstart="${isAdmin ? `startTaskRowDrag(event, ${task.id})` : ''}" onclick="handleTaskNameClick(${task.id})" title="Click to edit, or drag to reorder">${task.taskNumber}</span>
+                                <span class="text-xs font-medium ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'} truncate cursor-pointer hover:text-red-600 hover:underline" onclick="handleTaskNameClick(${task.id})" title="Click to view details (${task.description})">${task.description}</span>
+                            </div>
+                            <div class="flex items-center space-x-1 shrink-0 ${isAdmin ? '' : 'hidden'}">
+                                <button onclick="promptDeleteTask(${task.id}, event)" class="text-slate-400 hover:text-red-600 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity" title="Delete Task">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                                <button onclick="openModal(${task.id})" class="text-slate-400 hover:text-slate-700 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity" title="Edit Task">
+                                    <i class="fa-solid fa-pen text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Timeline Bar Cell -->
+                        <div class="flex-1 relative h-full flex items-center">
+                            <!-- Background Grid Lines -->
+                            <div class="absolute inset-0 flex pointer-events-none">
+                `;
+
+                daysHeader.forEach(d => {
+                    html += `<div class="w-[40px] shrink-0 border-r border-slate-100 h-full ${d.isWeekend ? 'bg-slate-50/50' : ''}"></div>`;
+                });
+
+                html += `
+                            </div>
+
+                            <!-- Interactive Gantt Task Bar -->
+                            <div id="gantt-bar-${task.id}" class="absolute h-7 rounded-lg shadow-sm flex items-center justify-between px-2 text-xs font-medium border transition-shadow ${isAdmin ? 'gantt-bar-draggable' : 'cursor-default'} ${catColor.bg} ${catColor.text} ${catColor.border} ${task.completed ? 'opacity-65' : ''}" style="left: ${leftPx}px; width: ${widthPx}px;" ${isAdmin ? `onmousedown="startTimelineDrag(event, ${task.id}, 'move')"` : ''}>
+                                ${isAdmin ? `<div class="drag-handle-left absolute left-0 top-0 bottom-0 w-2 hover:bg-black/10 rounded-l-lg" onmousedown="startTimelineDrag(event, ${task.id}, 'resize-left')"></div>` : ''}
+                                
+                                <span class="truncate text-[11px] font-semibold px-1 select-none pointer-events-none">${task.description}</span>
+                                
+                                ${isAdmin ? `<div class="drag-handle-right absolute right-0 top-0 bottom-0 w-2 hover:bg-black/10 rounded-r-lg" onmousedown="startTimelineDrag(event, ${task.id}, 'resize-right')"></div>` : ''}
+
+                                ${isAdmin ? `
+                                <div class="absolute -right-3 w-5 h-5 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] shadow cursor-crosshair opacity-0 group-hover:opacity-100 transition-opacity z-30" title="Drag to connect dependency" onmousedown="startDependencyConnect(event, ${task.id})">
+                                    <i class="fa-solid fa-plus pointer-events-none"></i>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+
+            // Draw SVG dependency lines after DOM elements are created
+            setTimeout(drawDependencyLines, 20);
+        }
+
+        // SVG Orthogonal Dependency Drawing
+        function drawDependencyLines() {
+            const svgGroup = document.getElementById('dependency-paths-group');
+            if (!svgGroup) return;
+
+            svgGroup.innerHTML = '';
+            const filtered = getFilteredTasks();
+
+            filtered.forEach(targetTask => {
+                if (!targetTask.dependencies || targetTask.dependencies.length === 0) return;
+
+                const targetEl = document.getElementById(`gantt-bar-${targetTask.id}`);
+                if (!targetEl) return;
+
+                const targetRect = targetEl.getBoundingClientRect();
+                const svgRect = document.getElementById('dependency-svg').getBoundingClientRect();
+
+                targetTask.dependencies.forEach(sourceId => {
+                    const sourceTask = tasks.find(t => t.id === sourceId);
+                    const sourceEl = document.getElementById(`gantt-bar-${sourceId}`);
+                    if (!sourceEl || !sourceTask) return;
+
+                    const sourceRect = sourceEl.getBoundingClientRect();
+
+                    // Calculate relative points inside SVG
+                    const startX = sourceRect.right - svgRect.left;
+                    const startY = sourceRect.top + (sourceRect.height / 2) - svgRect.top;
+                    const endX = targetRect.left - svgRect.left;
+                    const endY = targetRect.top + (targetRect.height / 2) - svgRect.top;
+
+                    const isCompleted = sourceTask.completed && targetTask.completed;
+                    const strokeColor = isCompleted ? '#059669' : '#dc2626';
+                    const markerUrl = isCompleted ? 'url(#arrow-completed)' : 'url(#arrow)';
+
+                    let pathD = '';
+                    if (endX > startX + 15) {
+                        // Standard Forward Connection: 3-step right -> vertical -> right into target
+                        const midX = startX + Math.round((endX - startX) / 2);
+                        pathD = `M ${startX} ${startY} L ${midX} ${startY} L ${midX} ${endY} L ${endX - 5} ${endY}`;
+                    } else {
+                        // Overlapping / Backward Connection:
+                        // 1. Extend 1 cell width (40px) right of the source task
+                        const exitX = startX + DAY_WIDTH;
+                        
+                        // 2. Route down/up into the row centerline / buffer gap
+                        const rowGapY = startY < endY ? (startY + 24) : (startY - 24);
+
+                        // 3. Step 1 cell left of the target task's starting position
+                        const enterX = Math.max(10, endX - 20);
+
+                        // Clean 5-segment path: Exit 1 cell right -> Row buffer -> Horizontal track to target -> Enter target
+                        pathD = `M ${startX} ${startY} L ${exitX} ${startY} L ${exitX} ${rowGapY} L ${enterX} ${rowGapY} L ${enterX} ${endY} L ${endX - 5} ${endY}`;
+                    }
+
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    g.setAttribute('class', 'dependency-connector-group');
+
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', pathD);
+                    path.setAttribute('stroke', strokeColor);
+                    path.setAttribute('stroke-width', '2');
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('marker-end', markerUrl);
+                    path.setAttribute('class', 'dep-path');
+                    if (!isCompleted) path.setAttribute('stroke-dasharray', '4 2');
+
+                    g.appendChild(path);
+                    svgGroup.appendChild(g);
+                });
+            });
+        }
+        // Stats Computation Across Portfolio or Active Project
+        function updateStats() {
+            let total = 0;
+            let completed = 0;
+            const allPendingTasks = [];
+
+            if (activeView === 'home') {
+                // Compile metrics across ALL projects on the Home view
+                Object.values(projectsStore).forEach(proj => {
+                    const pTasks = proj.tasks || [];
+                    total += pTasks.length;
+                    completed += pTasks.filter(t => t.completed).length;
+
+                    pTasks.filter(t => !t.completed && t.dueDate).forEach(t => {
+                        allPendingTasks.push({
+                            ...t,
+                            projectName: proj.name || 'Project'
+                        });
+                    });
+                });
+            } else {
+                // Compile metrics for the active project
+                total = tasks.length;
+                completed = tasks.filter(t => t.completed).length;
+
+                const projName = projectsStore[activeProjectId]?.name || 'Project';
+                tasks.filter(t => !t.completed && t.dueDate).forEach(t => {
+                    allPendingTasks.push({
+                        ...t,
+                        projectName: projName
+                    });
+                });
+            }
+
+            const pending = total - completed;
+            const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+            document.getElementById('stat-percent').textContent = `${percent}%`;
+            document.getElementById('stat-progress-bar').style.width = `${percent}%`;
+            document.getElementById('stat-completed').textContent = completed;
+            document.getElementById('stat-pending').textContent = pending;
+
+            // Next Task Due across projects
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            allPendingTasks.sort((a,b) => new Date(a.dueDate) - new Date(b.dueDate));
+            const nextEl = document.getElementById('next-task-countdown');
+
+            if (nextEl) {
+                if (allPendingTasks.length > 0) {
+                    const nextTask = allPendingTasks[0];
+                    const nDate = new Date(nextTask.dueDate + 'T00:00:00');
+                    const nDiff = Math.ceil((nDate - today) / (1000 * 60 * 60 * 24));
+
+                    let dueText = '';
+                    if (nDiff < 0) dueText = `(${Math.abs(nDiff)}d overdue)`;
+                    else if (nDiff === 0) dueText = `(Due Today)`;
+                    else dueText = `(${nDiff} days)`;
+
+                    nextEl.innerHTML = `
+                        <span class="text-red-600">${nextTask.taskNumber}: ${nextTask.description}</span>
+                        <div class="text-[10px] text-slate-500 font-normal flex justify-between mt-0.5">
+                            <span>Proj: ${nextTask.projectName}</span>
+                            <span class="font-semibold text-slate-700">${dueText}</span>
+                        </div>
+                    `;
+                } else {
+                    nextEl.textContent = 'None';
+                }
+            }
+        }
+
+        function handleGlobalMouseUp(e) {
+            if (!activeDragMode || !draggedTaskId) return;
+
+            if (activeDragMode === 'connect-dependency') {
+                const tempPath = document.getElementById('temp-drag-path');
+                if (tempPath) tempPath.classList.add('hidden');
+
+                // Check target element dropped on
+                const targetRow = e.target.closest('[data-task-id]');
+                if (targetRow) {
+                    const targetTaskId = parseInt(targetRow.getAttribute('data-task-id'));
+                    if (targetTaskId && targetTaskId !== draggedTaskId) {
+                        toggleDependency(draggedTaskId, targetTaskId);
+                    }
+                }
+
+                activeDragMode = null;
+                draggedTaskId = null;
+                return;
+            }
+
+            const barEl = document.getElementById(`gantt-bar-${draggedTaskId}`);
+            const task = tasks.find(t => t.id === draggedTaskId);
+
+            if (barEl && task && timelineMinDate) {
+                const finalLeftPx = parseFloat(barEl.style.left) || 0;
+                const finalWidthPx = parseFloat(barEl.style.width) || DAY_WIDTH;
+
+                const startOffsetDays = Math.round(finalLeftPx / DAY_WIDTH);
+                const durationDays = Math.max(1, Math.round(finalWidthPx / DAY_WIDTH));
+
+                const newStartDate = new Date(timelineMinDate);
+                newStartDate.setDate(newStartDate.getDate() + startOffsetDays);
+
+                const newDueDate = new Date(newStartDate);
+                newDueDate.setDate(newDueDate.getDate() + (durationDays - 1));
+
+                const oldStart = task.startDate || task.dueDate;
+                const oldStartMs = new Date(oldStart + 'T00:00:00').getTime();
+                const newStartMs = newStartDate.getTime();
+                const diffDays = Math.round((newStartMs - oldStartMs) / (1000 * 60 * 60 * 24));
+
+                const formattedStart = newStartDate.toISOString().split('T')[0];
+                const formattedDue = newDueDate.toISOString().split('T')[0];
+
+                // Check if this task has downstream dependent tasks
+                const downstreamDependents = tasks.filter(t => t.dependencies && t.dependencies.includes(task.id));
+
+                if (diffDays !== 0 && downstreamDependents.length > 0) {
+                    pendingShiftData = {
+                        taskId: task.id,
+                        newStart: formattedStart,
+                        newDue: formattedDue,
+                        diffDays: diffDays,
+                        dependents: downstreamDependents
+                    };
+                    promptDependencyShiftModal(diffDays);
+                } else {
+                    task.startDate = formattedStart;
+                    task.dueDate = formattedDue;
+                    saveTasks();
+                    renderApp();
+                }
+            }
+
+            activeDragMode = null;
+            draggedTaskId = null;
+        }
+
+        function toggleDependency(sourceId, targetId) {
+            const targetTask = tasks.find(t => t.id === targetId);
+            if (!targetTask) return;
+
+            if (!targetTask.dependencies) targetTask.dependencies = [];
+
+            const index = targetTask.dependencies.indexOf(sourceId);
+            if (index > -1) {
+                targetTask.dependencies.splice(index, 1);
+            } else {
+                targetTask.dependencies.push(sourceId);
+            }
+
+            saveTasks();
+            renderApp();
+        }
+
+        // Cascade Shift Dialog Logic
+        function promptDependencyShiftModal(diffDays) {
+            document.getElementById('shift-days-count').textContent = `${diffDays > 0 ? '+' : ''}${diffDays}`;
+            document.getElementById('dependency-shift-modal').classList.remove('hidden');
+        }
+
+        function confirmCascadeShift(shouldCascade) {
+            document.getElementById('dependency-shift-modal').classList.add('hidden');
+
+            if (!pendingShiftData) return;
+
+            const { taskId, newStart, newDue, diffDays, dependents } = pendingShiftData;
+            const mainTask = tasks.find(t => t.id === taskId);
+
+            if (mainTask) {
+                mainTask.startDate = newStart;
+                mainTask.dueDate = newDue;
+
+                if (shouldCascade && dependents.length > 0) {
+                    shiftCascadeRecursive(taskId, diffDays);
+                }
+            }
+
+            pendingShiftData = null;
+            saveTasks();
+            renderApp();
+        }
+
+        function shiftCascadeRecursive(parentTaskId, diffDays) {
+            const children = tasks.filter(t => t.dependencies && t.dependencies.includes(parentTaskId));
+            children.forEach(child => {
+                if (child.startDate) {
+                    const s = new Date(child.startDate + 'T00:00:00');
+                    s.setDate(s.getDate() + diffDays);
+                    child.startDate = s.toISOString().split('T')[0];
+                }
+                if (child.dueDate) {
+                    const d = new Date(child.dueDate + 'T00:00:00');
+                    d.setDate(d.getDate() + diffDays);
+                    child.dueDate = d.toISOString().split('T')[0];
+                }
+                shiftCascadeRecursive(child.id, diffDays);
+            });
+        }
+
+        // Task Deletion logic
+        function promptDeleteTask(id, e) {
+            if (e) e.stopPropagation();
+            tasks = tasks.filter(t => t.id !== id);
+            // Remove from dependency lists
+            tasks.forEach(t => {
+                if (t.dependencies) {
+                    t.dependencies = t.dependencies.filter(depId => depId !== id);
+                }
+            });
+            saveTasks();
+            renderApp();
+        }
+
+        function promptDeleteAllTasks() {
+            document.getElementById('delete-all-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteAllModal() {
+            document.getElementById('delete-all-modal').classList.add('hidden');
+        }
+
+        function confirmDeleteAllTasks() {
+            tasks = [];
+            selectedTaskIds = [];
+            closeDeleteAllModal();
+            saveTasks();
+            renderApp();
+        }
+
+        function toggleTaskComplete(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveTasks();
+                renderApp();
+            }
+        }
+
+        // Bulk Selection Functions
+        function toggleSelectTask(id) {
+            const idx = selectedTaskIds.indexOf(id);
+            if (idx > -1) selectedTaskIds.splice(idx, 1);
+            else selectedTaskIds.push(id);
+            updateBulkToolbar();
+        }
+
+        function toggleSelectAllTable(checked) {
+            const filtered = getFilteredTasks();
+            if (checked) {
+                selectedTaskIds = filtered.map(t => t.id);
+            } else {
+                selectedTaskIds = [];
+            }
+            renderTable();
+            updateBulkToolbar();
+        }
+
+        function clearBulkSelection() {
+            selectedTaskIds = [];
+            renderTable();
+            updateBulkToolbar();
+        }
+
+        function updateBulkToolbar() {
+            const toolbar = document.getElementById('bulk-toolbar');
+            const countEl = document.getElementById('bulk-count');
+            if (!toolbar || !countEl) return;
+
+            if (selectedTaskIds.length > 0) {
+                toolbar.classList.remove('hidden');
+                countEl.textContent = selectedTaskIds.length;
+            } else {
+                toolbar.classList.add('hidden');
+            }
+        }
+
+        function applyBulkRecategorize() {
+            const catSelect = document.getElementById('bulk-category-select');
+            if (!catSelect || selectedTaskIds.length === 0) return;
+
+            const newCategory = catSelect.value;
+            tasks.forEach(t => {
+                if (selectedTaskIds.includes(t.id)) {
+                    if (t.category !== newCategory) {
+                        t.category = newCategory;
+                        t.taskNumber = generateNextTaskNumber(newCategory);
+                    }
+                }
+            });
+
+            clearBulkSelection();
+            saveTasks();
+            renderApp();
+        }
+
+        function applyBulkDelete() {
+            if (selectedTaskIds.length === 0) return;
+            tasks = tasks.filter(t => !selectedTaskIds.includes(t.id));
+            tasks.forEach(t => {
+                if (t.dependencies) {
+                    t.dependencies = t.dependencies.filter(id => !selectedTaskIds.includes(id));
+                }
+            });
+
+            clearBulkSelection();
+            saveTasks();
+            renderApp();
+        }
+
+        // CALENDAR VIEW RENDER ENGINE
+        function renderCalendar() {
+            const container = document.getElementById('view-calendar');
+            if (!container) return;
+
+            const year = currentCalendarDate.getFullYear();
+            const month = currentCalendarDate.getMonth();
+            const monthName = currentCalendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+
+            const startDayIndex = firstDay.getDay();
+            const totalDays = lastDay.getDate();
+
+            const filteredTasks = getFilteredTasks();
+
+            let html = `
+                <div class="bg-white rounded-xl border border-slate-300 shadow-md p-4 flex-1 flex flex-col">
+                    <!-- Calendar Header -->
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-200">
+                        <div class="flex items-center space-x-3">
+                            <h2 class="text-lg font-bold text-slate-800">${monthName}</h2>
+                            <button onclick="changeCalendarMonth(0)" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-xs font-semibold rounded text-slate-700 border border-slate-300">Today</button>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <button onclick="changeCalendarMonth(-1)" class="p-2 hover:bg-slate-100 text-slate-600 rounded-lg"><i class="fa-solid fa-chevron-left"></i></button>
+                            <button onclick="changeCalendarMonth(1)" class="p-2 hover:bg-slate-100 text-slate-600 rounded-lg"><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Days Header -->
+                    <div class="grid grid-cols-7 text-center text-xs font-semibold text-slate-500 py-2 border-b border-slate-200 uppercase tracking-wider">
+                        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                    </div>
+
+                    <!-- Days Grid -->
+                    <div class="grid grid-cols-7 flex-1 gap-1 pt-1 bg-slate-100">
+            `;
+
+            // Leading empty cells
+            for (let i = 0; i < startDayIndex; i++) {
+                html += `<div class="bg-slate-50/50 rounded-lg p-1 min-h-[90px]"></div>`;
+            }
+
+            // Days of the month
+            const todayStr = new Date().toISOString().split('T')[0];
+            for (let day = 1; day <= totalDays; day++) {
+                const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                const isToday = dateStr === todayStr;
+                const cellDate = new Date(dateStr + 'T00:00:00');
+
+                // Task covers date if:
+                // 1) It has a start & due date and cellDate falls between them (inclusive)
+                // 2) Or it only has a due date matching dateStr
+                const dayTasks = filteredTasks.filter(t => {
+                    const due = new Date(t.dueDate + 'T00:00:00');
+                    if (t.startDate) {
+                        const start = new Date(t.startDate + 'T00:00:00');
+                        return cellDate >= start && cellDate <= due;
+                    }
+                    return t.dueDate === dateStr;
+                });
+
+                html += `
+                    <div class="bg-white rounded-lg p-1.5 min-h-[90px] border ${isToday ? 'border-red-500 ring-1 ring-red-500/30' : 'border-slate-200'} flex flex-col justify-between hover:border-slate-300 transition-colors">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs font-semibold ${isToday ? 'text-red-600 font-bold' : 'text-slate-700'}">${day}</span>
+                            ${dayTasks.length > 0 ? `<span class="text-[10px] text-slate-400 font-medium">${dayTasks.length} task${dayTasks.length > 1 ? 's' : ''}</span>` : ''}
+                        </div>
+                        <div class="space-y-1 overflow-y-auto max-h-20 flex-1">
+                `;
+
+                dayTasks.forEach(task => {
+                    const catColor = CATEGORY_COLORS[task.category] || CATEGORY_COLORS['Default'];
+
+                    const isStartDay = task.startDate ? (task.startDate === dateStr) : true;
+                    const isEndDay = task.dueDate === dateStr;
+                    const isMultiDay = task.startDate && task.startDate !== task.dueDate;
+
+                    // Continuous Bar Styling based on position in multi-day range
+                    let roundingClass = 'rounded-md';
+                    if (isMultiDay) {
+                        if (isStartDay) roundingClass = 'rounded-l-md border-r-0';
+                        else if (isEndDay) roundingClass = 'rounded-r-md border-l-0';
+                        else roundingClass = 'rounded-none border-x-0';
+                    }
+
+                    html += `
+                        <div onclick="handleTaskNameClick(${task.id})" class="px-1.5 py-1 text-[10px] font-medium border cursor-pointer truncate ${roundingClass} ${catColor.bg} ${catColor.text} ${catColor.border} ${task.completed ? 'line-through opacity-60' : ''}" title="${task.taskNumber}: ${task.description} (${task.startDate || task.dueDate} to ${task.dueDate})">
+                            ${isStartDay || !isMultiDay ? `<span class="font-bold">${task.taskNumber}:</span> ${task.description}` : `<span class="font-semibold text-[9px] opacity-75">↳ ${task.taskNumber}</span>`}
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function changeCalendarMonth(offset) {
+            if (offset === 0) {
+                currentCalendarDate = new Date();
+            } else {
+                currentCalendarDate.setMonth(currentCalendarDate.getMonth() + offset);
+            }
+            renderCalendar();
+        }
+
+        // TASK LIST TABLE VIEW RENDER ENGINE
+        function renderTable() {
+            const container = document.getElementById('task-table-body');
+            if (!container) return;
+
+            const filtered = getFilteredTasks();
+            const selectAllCheck = document.getElementById('select-all-table');
+
+            if (selectAllCheck) {
+                selectAllCheck.checked = filtered.length > 0 && filtered.every(t => selectedTaskIds.includes(t.id));
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-8 text-slate-400 font-medium">No tasks found matching your filters.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const isAdmin = currentUserRole === 'admin';
+            let html = '';
+
+            filtered.forEach(task => {
+                const isSelected = selectedTaskIds.includes(task.id);
+                const catColor = CATEGORY_COLORS[task.category] || CATEGORY_COLORS['Default'];
+
+                // Dependency badge names
+                const depBadges = (task.dependencies || []).map(depId => {
+                    const depTask = tasks.find(t => t.id === depId);
+                    return depTask ? `<span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 border border-slate-300 font-mono font-bold text-slate-700">${depTask.taskNumber}</span>` : '';
+                }).join(' ');
+
+                html += `
+                    <tr class="hover:bg-slate-50 transition-colors ${isSelected ? 'bg-red-50/60' : ''}" data-task-id="${task.id}" ondragover="handleTaskRowDragOver(event, ${task.id})" ondragleave="handleTaskRowDragLeave(event, ${task.id})" ondrop="handleTaskRowDrop(event, ${task.id})">
+                        <td class="py-3 px-3 text-center ${isAdmin ? '' : 'hidden'}">
+                            <div class="flex items-center space-x-2">
+                                <div class="task-row-reorder-handle text-slate-300 hover:text-slate-600 cursor-grab" draggable="true" ondragstart="startTaskRowDrag(event, ${task.id})" title="Drag to reorder task">
+                                    <i class="fa-solid fa-grip-vertical text-xs"></i>
+                                </div>
+                                <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelectTask(${task.id})" class="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500 cursor-pointer">
+                            </div>
+                        </td>
+                        <td class="py-3 px-3 text-center">
+                            <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTaskComplete(${task.id})" class="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500 cursor-pointer">
+                        </td>
+                        <td class="py-3 px-4 font-mono text-xs font-bold text-slate-700">
+                            <span class="cursor-pointer hover:text-red-600 hover:underline ${isAdmin ? 'task-row-reorder-handle' : ''}" draggable="${isAdmin}" ondragstart="${isAdmin ? `startTaskRowDrag(event, ${task.id})` : ''}" onclick="handleTaskNameClick(${task.id})">${task.taskNumber}</span>
+                        </td>
+                        <td class="py-3 px-4 font-medium text-slate-800">
+                            <span class="cursor-pointer hover:text-red-600 hover:underline" onclick="handleTaskNameClick(${task.id})">${task.description}</span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium ${catColor.badge} border ${catColor.border}">${task.category}</span>
+                        </td>
+                        <td class="py-3 px-4 text-xs font-medium text-slate-600">
+                            ${formatDateString(task.dueDate)}
+                        </td>
+                        <td class="py-3 px-4">
+                            <div class="flex flex-wrap gap-1">${depBadges || '<span class="text-slate-300 text-xs">None</span>'}</div>
+                        </td>
+                        <td class="py-3 px-4 text-right space-x-1 ${isAdmin ? '' : 'hidden'}">
+                            <button onclick="duplicateTask(${task.id})" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100" title="Duplicate Task">
+                                <i class="fa-solid fa-copy text-xs"></i>
+                            </button>
+                            <button onclick="openModal(${task.id})" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100" title="Edit Task">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                            </button>
+                            <button onclick="promptDeleteTask(${task.id}, event)" class="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-100" title="Delete Task">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // Vertical Task Reordering Handlers
+        function startTaskRowDrag(e, taskId) {
+            if (currentUserRole !== 'admin') return;
+            e.stopPropagation();
+            draggedTaskId = taskId;
+            try {
+                e.dataTransfer.setData('text/plain', String(taskId));
+            } catch (err) {
+                // Fallback for strict browser security contexts
+            }
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleTaskRowDragOver(e, targetTaskId) {
+            if (currentUserRole !== 'admin' || !draggedTaskId) return;
+            const sourceId = Number(draggedTaskId);
+            const targetId = Number(targetTaskId);
+            if (sourceId === targetId) return;
+
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+
+            const row = e.currentTarget;
+            if (row) row.classList.add('drag-reorder-target');
+        }
+
+        function handleTaskRowDragLeave(e, targetTaskId) {
+            const row = e.currentTarget;
+            if (row) row.classList.remove('drag-reorder-target');
+        }
+
+        function handleTaskRowDrop(e, targetTaskId) {
+            if (currentUserRole !== 'admin' || !draggedTaskId) return;
+            e.preventDefault();
+            
+            const row = e.currentTarget;
+            if (row) row.classList.remove('drag-reorder-target');
+
+            const sourceId = Number(draggedTaskId);
+            const targetId = Number(targetTaskId);
+
+            if (sourceId !== targetId) {
+                const draggedIdx = tasks.findIndex(t => Number(t.id) === sourceId);
+                const targetIdx = tasks.findIndex(t => Number(t.id) === targetId);
+
+                if (draggedIdx > -1 && targetIdx > -1) {
+                    // Splice and insert at target position
+                    const [movedTask] = tasks.splice(draggedIdx, 1);
+                    tasks.splice(targetIdx, 0, movedTask);
+
+                    // Re-sequence task numbers sequentially by category order
+                    resequenceTaskNumbers();
+
+                    // Persist updated task array & re-render view
+                    saveTasks();
+                    renderApp();
+                }
+            }
+
+            draggedTaskId = null;
+        }
+
+        function openGuestViewModal(id) {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+
+            const modal = document.getElementById('view-task-modal');
+            if (!modal) return;
+
+            document.getElementById('guest-view-number').textContent = task.taskNumber || '--';
+            document.getElementById('guest-view-description').textContent = task.description || '';
+
+            const catColor = CATEGORY_COLORS[task.category] || CATEGORY_COLORS['Default'];
+            const catBadge = document.getElementById('guest-view-category');
+            catBadge.textContent = task.category || 'General';
+            catBadge.className = `inline-block font-medium px-2 py-0.5 rounded-full text-xs ${catColor.badge} border ${catColor.border}`;
+
+            const statusBadge = document.getElementById('guest-view-status');
+            if (task.completed) {
+                statusBadge.textContent = 'Completed';
+                statusBadge.className = 'inline-block text-xs font-semibold text-emerald-600';
+            } else {
+                statusBadge.textContent = 'Pending';
+                statusBadge.className = 'inline-block text-xs font-semibold text-amber-600';
+            }
+
+            document.getElementById('guest-view-start').textContent = task.startDate ? formatDateString(task.startDate) : 'Not specified';
+            document.getElementById('guest-view-due').textContent = formatDateString(task.dueDate) || 'Not set';
+
+            const depsContainer = document.getElementById('guest-view-deps');
+            if (task.dependencies && task.dependencies.length > 0) {
+                depsContainer.innerHTML = task.dependencies.map(depId => {
+                    const dt = tasks.find(t => t.id === depId);
+                    return dt ? `<span class="px-2 py-0.5 rounded text-xs bg-slate-100 border border-slate-300 font-mono font-bold text-slate-700">${dt.taskNumber} - ${dt.description}</span>` : '';
+                }).join('');
+            } else {
+                depsContainer.innerHTML = '<span class="text-slate-400">No prerequisites</span>';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeGuestViewModal() {
+            const modal = document.getElementById('view-task-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function openModal(taskId = null) {
+            if (currentUserRole !== 'admin') return;
+            const modal = document.getElementById('task-modal');
+            const titleEl = document.getElementById('modal-title');
+            const copyBtn = document.getElementById('copy-task-btn');
+
+            document.getElementById('task-id').value = taskId || '';
+            document.getElementById('task-form').reset();
+
+            // Populate Dependency options
+            const depSelector = document.getElementById('dependencies-selector');
+            depSelector.innerHTML = '';
+
+            const currentTask = taskId ? tasks.find(t => t.id === taskId) : null;
+
+            tasks.forEach(t => {
+                if (taskId && t.id === taskId) return; // Prevent self dependency
+
+                const isChecked = currentTask && currentTask.dependencies && currentTask.dependencies.includes(t.id);
+
+                depSelector.innerHTML += `
+                    <div class="flex items-center justify-between text-xs p-1 hover:bg-white rounded transition-colors">
+                        <div class="flex items-center space-x-2 truncate">
+                            <input type="checkbox" id="dep-check-${t.id}" value="${t.id}" ${isChecked ? 'checked' : ''} class="w-3.5 h-3.5 text-red-600 border-slate-300 rounded focus:ring-red-500 cursor-pointer">
+                            <label for="dep-check-${t.id}" class="font-medium text-slate-700 truncate cursor-pointer">
+                                <span class="font-mono text-slate-500 font-bold">${t.taskNumber}</span> - ${t.description}
+                            </label>
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (currentTask) {
+                titleEl.textContent = `Edit Task ${currentTask.taskNumber}`;
+                document.getElementById('form-description').value = currentTask.description;
+                document.getElementById('form-category').value = currentTask.category || 'General';
+                document.getElementById('form-start-date').value = currentTask.startDate || '';
+                document.getElementById('form-due-date').value = currentTask.dueDate;
+                document.getElementById('form-completed').checked = currentTask.completed;
+                if (copyBtn) copyBtn.classList.remove('hidden');
+            } else {
+                titleEl.textContent = 'Add New Task';
+                document.getElementById('form-category').value = 'General';
+                document.getElementById('form-start-date').value = formatDateOffset(0);
+                document.getElementById('form-due-date').value = formatDateOffset(5);
+                if (copyBtn) copyBtn.classList.add('hidden');
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('task-modal').classList.add('hidden');
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            if (currentUserRole !== 'admin') return;
+
+            const taskId = parseInt(document.getElementById('task-id').value);
+            const description = document.getElementById('form-description').value.trim();
+            const category = document.getElementById('form-category').value;
+            const startDate = document.getElementById('form-start-date').value || null;
+            const dueDate = document.getElementById('form-due-date').value;
+            const completed = document.getElementById('form-completed').checked;
+
+            // Gather dependencies
+            const dependencies = [];
+            const depChecks = document.querySelectorAll('#dependencies-selector input[type="checkbox"]:checked');
+            depChecks.forEach(chk => dependencies.push(parseInt(chk.value)));
+
+            if (taskId) {
+                // Edit existing task
+                const task = tasks.find(t => t.id === taskId);
+                if (task) {
+                    if (task.category !== category) {
+                        task.category = category;
+                        task.taskNumber = generateNextTaskNumber(category);
+                    }
+                    task.description = description;
+                    task.startDate = startDate;
+                    task.dueDate = dueDate;
+                    task.dependencies = dependencies;
+                    task.completed = completed;
+                }
+            } else {
+                // Add new task
+                const newTaskNumber = generateNextTaskNumber(category);
+                const newTask = {
+                    id: Date.now(),
+                    taskNumber: newTaskNumber,
+                    category,
+                    description,
+                    startDate,
+                    dueDate,
+                    dependencies,
+                    completed
+                };
+                tasks.push(newTask);
+            }
+
+            closeModal();
+            saveTasks();
+            renderApp();
+        }
+        <!-- HEADER EDIT MODAL & CUSTOMIZATION -->
+        function openHeaderModal() {
+            // Only allow header editing if currently in Admin role
+            if (currentUserRole !== 'admin') return;
+            const modal = document.createElement('div');
+            modal.id = 'header-modal';
+            modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm';
+
+            modal.innerHTML = `
+                <div class="bg-white border border-slate-300 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
+                    <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+                        <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                            <i class="fa-solid fa-pen-to-square text-red-600"></i>
+                            <span>Customize Header & Logo</span>
+                        </h3>
+                        <button onclick="closeHeaderModal()" class="text-slate-400 hover:text-slate-700">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
+
+                    <form onsubmit="handleHeaderFormSubmit(event)" class="mt-4 space-y-4 text-xs">
+                        <div>
+                            <label class="block font-semibold text-slate-600 uppercase mb-1">Dashboard Title</label>
+                            <input type="text" id="header-form-title" value="${headerSettings.title}" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-600 uppercase mb-1">Subtitle / Description</label>
+                            <input type="text" id="header-form-subtitle" value="${headerSettings.subtitle}" required class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                        </div>
+
+                        <div>
+                            <label class="block font-semibold text-slate-600 uppercase mb-1">Logo Choice</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="p-2 border border-slate-300 rounded-lg flex items-center space-x-2 cursor-pointer hover:bg-slate-50">
+                                    <input type="radio" name="logo-type" value="icon" ${!headerSettings.logo || !headerSettings.logo.startsWith('data:') ? 'checked' : ''} onchange="toggleLogoInput(this.value)">
+                                    <span class="font-medium text-slate-700">FontAwesome Icon</span>
+                                </label>
+                                <label class="p-2 border border-slate-300 rounded-lg flex items-center space-x-2 cursor-pointer hover:bg-slate-50">
+                                    <input type="radio" name="logo-type" value="image" ${headerSettings.logo && headerSettings.logo.startsWith('data:') ? 'checked' : ''} onchange="toggleLogoInput(this.value)">
+                                    <span class="font-medium text-slate-700">Upload Image</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="icon-input-group" class="${headerSettings.logo && headerSettings.logo.startsWith('data:') ? 'hidden' : ''}">
+                            <label class="block font-semibold text-slate-600 uppercase mb-1">Icon Class</label>
+                            <select id="header-form-icon" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                                <option value="fa-list-check" ${headerSettings.logo === 'fa-list-check' ? 'selected' : ''}>List Check (Default)</option>
+                                <option value="fa-chart-gantt" ${headerSettings.logo === 'fa-chart-gantt' ? 'selected' : ''}>Gantt Chart</option>
+                                <option value="fa-building-user" ${headerSettings.logo === 'fa-building-user' ? 'selected' : ''}>Building / Construction</option>
+                                <option value="fa-cubes" ${headerSettings.logo === 'fa-cubes' ? 'selected' : ''}>Cubes / BIM</option>
+                                <option value="fa-diagram-project" ${headerSettings.logo === 'fa-diagram-project' ? 'selected' : ''}>Diagram Project</option>
+                            </select>
+                        </div>
+
+                        <div id="image-input-group" class="${headerSettings.logo && headerSettings.logo.startsWith('data:') ? '' : 'hidden'}">
+                            <label class="block font-semibold text-slate-600 uppercase mb-1">Select Custom Logo Image</label>
+                            <input type="file" id="header-form-file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100">
+                        </div>
+
+                        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200">
+                            <button type="button" onclick="closeHeaderModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
+                            <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Save Header</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+        }
+
+        function closeHeaderModal() {
+            const modal = document.getElementById('header-modal');
+            if (modal) modal.remove();
+        }
+
+        function toggleLogoInput(type) {
+            const iconGroup = document.getElementById('icon-input-group');
+            const imageGroup = document.getElementById('image-input-group');
+            if (type === 'icon') {
+                iconGroup.classList.remove('hidden');
+                imageGroup.classList.add('hidden');
+            } else {
+                iconGroup.classList.add('hidden');
+                imageGroup.classList.remove('hidden');
+            }
+        }
+
+        function handleHeaderFormSubmit(e) {
+            e.preventDefault();
+            if (currentUserRole !== 'admin') return;
+
+            const title = document.getElementById('header-form-title').value.trim();
+            const subtitle = document.getElementById('header-form-subtitle').value.trim();
+            const logoType = document.querySelector('input[name="logo-type"]:checked').value;
+
+            headerSettings.title = title;
+            headerSettings.subtitle = subtitle;
+
+            if (logoType === 'icon') {
+                headerSettings.logo = document.getElementById('header-form-icon').value;
+                renderHeader();
+                saveTasks();
+                closeHeaderModal();
+            } else {
+                const fileInput = document.getElementById('header-form-file');
+                if (fileInput.files && fileInput.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        headerSettings.logo = evt.target.result;
+                        renderHeader();
+                        saveTasks();
+                        closeHeaderModal();
+                    };
+                    reader.readAsDataURL(fileInput.files[0]);
+                } else {
+                    renderHeader();
+                    saveTasks();
+                    closeHeaderModal();
+                }
+            }
+        }
+
+        function updateProjectDeadline(val) {
+            if (currentUserRole !== 'admin') return;
+            projectDeadline = val;
+            saveTasks();
+            updateStats();
+        }
+
+        // Helper Utility Functions
+        function formatDateOffset(offsetDays) {
+            const d = new Date();
+            d.setDate(d.getDate() + offsetDays);
+            return d.toISOString().split('T')[0];
+        }
+
+        function formatDateString(dateStr) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            return `${parts[1]}/${parts[2]}/${parts[0]}`;
+        }
+
+        function generateNextTaskNumber(category) {
+            const prefix = CATEGORY_PREFIXES[category] || 'T';
+            const catTasks = tasks.filter(t => t.category === category);
+            let maxNum = 0;
+            catTasks.forEach(t => {
+                if (t.taskNumber) {
+                    const match = t.taskNumber.match(/-(\d+)$/);
+                    if (match) {
+                        const val = parseInt(match[1]);
+                        if (val > maxNum) maxNum = val;
+                    }
+                }
+            });
+            return `${prefix}-${(maxNum + 1).toString().padStart(2, '0')}`;
+        }
+
+        function resequenceTaskNumbers() {
+            const counts = {};
+            tasks.forEach(task => {
+                const cat = task.category || 'General';
+                const prefix = CATEGORY_PREFIXES[cat] || 'T';
+                counts[cat] = (counts[cat] || 0) + 1;
+                task.taskNumber = `${prefix}-${counts[cat].toString().padStart(2, '0')}`;
+            });
+        }
+
+        function duplicateTask(id) {
+            if (currentUserRole !== 'admin') return;
+            const source = tasks.find(t => t.id === id);
+            if (!source) return;
+
+            const newTaskNumber = generateNextTaskNumber(source.category);
+            const copy = {
+                ...source,
+                id: Date.now(),
+                taskNumber: newTaskNumber,
+                description: `${source.description} (Copy)`,
+                completed: false,
+                dependencies: [...(source.dependencies || [])]
+            };
+
+            const idx = tasks.findIndex(t => t.id === id);
+            if (idx > -1) tasks.splice(idx + 1, 0, copy);
+            else tasks.push(copy);
+
+            saveTasks();
+            renderApp();
+        }
+
+        function copyCurrentTask() {
+            const taskId = parseInt(document.getElementById('task-id').value);
+            if (taskId) {
+                closeModal();
+                duplicateTask(taskId);
+            }
+        }
+
+        // Global Mouse Interaction Handlers for Timeline Dragging & Dependency Drawing
+        function startTimelineDrag(e, taskId, mode) {
+            if (currentUserRole !== 'admin') return;
+            e.stopPropagation();
+            activeDragMode = mode;
+            draggedTaskId = taskId;
+            dragStartX = e.clientX;
+
+            const barEl = document.getElementById(`gantt-bar-${taskId}`);
+            if (barEl) {
+                originalStartOffset = parseFloat(barEl.style.left) || 0;
+                originalBarWidth = parseFloat(barEl.style.width) || DAY_WIDTH;
+            }
+        }
+
+        function startDependencyConnect(e, sourceTaskId) {
+            if (currentUserRole !== 'admin') return;
+            e.stopPropagation();
+            activeDragMode = 'connect-dependency';
+            draggedTaskId = sourceTaskId;
+
+            const sourceEl = document.getElementById(`gantt-bar-${sourceTaskId}`);
+            const svgRect = document.getElementById('dependency-svg')?.getBoundingClientRect();
+            if (sourceEl && svgRect) {
+                const sourceRect = sourceEl.getBoundingClientRect();
+                const startX = sourceRect.right - svgRect.left;
+                const startY = sourceRect.top + (sourceRect.height / 2) - svgRect.top;
+
+                const tempPath = document.getElementById('temp-drag-path');
+                if (tempPath) {
+                    tempPath.setAttribute('d', `M ${startX} ${startY} L ${startX} ${startY}`);
+                    tempPath.classList.remove('hidden');
+                }
+            }
+        }
+
+        function handleGlobalMouseMove(e) {
+            if (!activeDragMode || !draggedTaskId) return;
+
+            if (activeDragMode === 'connect-dependency') {
+                const tempPath = document.getElementById('temp-drag-path');
+                const svgRect = document.getElementById('dependency-svg')?.getBoundingClientRect();
+                const sourceEl = document.getElementById(`gantt-bar-${draggedTaskId}`);
+
+                if (tempPath && svgRect && sourceEl) {
+                    const sourceRect = sourceEl.getBoundingClientRect();
+                    const startX = sourceRect.right - svgRect.left;
+                    const startY = sourceRect.top + (sourceRect.height / 2) - svgRect.top;
+
+                    const currX = e.clientX - svgRect.left;
+                    const currY = e.clientY - svgRect.top;
+
+                    tempPath.setAttribute('d', `M ${startX} ${startY} L ${currX} ${currY}`);
+                }
+                return;
+            }
+
+            const barEl = document.getElementById(`gantt-bar-${draggedTaskId}`);
+            if (!barEl) return;
+
+            const deltaX = e.clientX - dragStartX;
+
+            if (activeDragMode === 'move') {
+                const newLeft = Math.max(0, originalStartOffset + deltaX);
+                barEl.style.left = `${newLeft}px`;
+            } else if (activeDragMode === 'resize-left') {
+                const newLeft = Math.max(0, originalStartOffset + deltaX);
+                const newWidth = Math.max(DAY_WIDTH, originalBarWidth - deltaX);
+                barEl.style.left = `${newLeft}px`;
+                barEl.style.width = `${newWidth}px`;
+            } else if (activeDragMode === 'resize-right') {
+                const newWidth = Math.max(DAY_WIDTH, originalBarWidth + deltaX);
+                barEl.style.width = `${newWidth}px`;
+            }
+
+            // Dynamically redraw dependency lines during bar movement
+            drawDependencyLines();
+        }
+
+        function renderHeader() {
+            const titleEl = document.getElementById('header-title');
+            const subtitleEl = document.getElementById('header-subtitle');
+            const logoContainer = document.getElementById('header-logo-container');
+
+            if (titleEl) {
+                titleEl.innerHTML = `<span>${headerSettings.title || 'Project Horizon Schedule'}</span> <i class="fa-solid fa-pen text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"></i>`;
+            }
+            if (subtitleEl) {
+                subtitleEl.textContent = headerSettings.subtitle || 'Track tasks, dependencies, timeline & calendar';
+            }
+            if (logoContainer) {
+                if (headerSettings.logo && headerSettings.logo.startsWith('data:')) {
+                    logoContainer.innerHTML = `<img src="${headerSettings.logo}" class="w-6 h-6 object-contain rounded">`;
+                } else {
+                    const iconClass = headerSettings.logo || 'fa-list-check';
+                    logoContainer.innerHTML = `<i class="fa-solid ${iconClass} text-xl text-red-500"></i>`;
+                }
+            }
+        }
+
+        function updateSaveIndicatorUI() {
+            const saveInd = document.getElementById('save-indicator');
+            const stampEl = document.getElementById('save-timestamp');
+            if (saveInd && stampEl) {
+                if (lastSavedTime) {
+                    stampEl.textContent = `Last Saved at ${lastSavedTime}`;
+                    saveInd.classList.remove('hidden');
+                } else {
+                    saveInd.classList.add('hidden');
+                }
+            }
+        }
+
+        function updateRoleUI() {
+            const badge = document.getElementById('role-badge');
+            const authBtn = document.getElementById('auth-btn');
+            const homeBadge = document.getElementById('home-role-badge');
+            const homeAuthBtn = document.getElementById('home-auth-btn');
+
+            const addBtn = document.getElementById('header-add-task-btn');
+            const delAllBtn = document.getElementById('header-delete-all-btn');
+
+            if (currentUserRole === 'admin') {
+                if (badge) badge.innerHTML = `<i class="fa-solid fa-shield-halved mr-1 text-[10px] text-red-400"></i>Admin`;
+                if (homeBadge) homeBadge.innerHTML = `<i class="fa-solid fa-shield-halved mr-1 text-[10px] text-red-400"></i>Admin`;
+
+                if (authBtn) {
+                    authBtn.textContent = 'Sign Out';
+                    authBtn.setAttribute('onclick', 'signOutAdmin(event)');
+                }
+                if (homeAuthBtn) {
+                    homeAuthBtn.textContent = 'Sign Out';
+                    homeAuthBtn.setAttribute('onclick', 'signOutAdmin(event)');
+                }
+
+                if (addBtn) addBtn.classList.remove('hidden');
+                if (delAllBtn) delAllBtn.classList.remove('hidden');
+            } else {
+                if (badge) badge.innerHTML = `<i class="fa-solid fa-user mr-1 text-[10px]"></i>Guest`;
+                if (homeBadge) homeBadge.innerHTML = `<i class="fa-solid fa-user mr-1 text-[10px]"></i>Guest`;
+
+                if (authBtn) {
+                    authBtn.textContent = 'Admin Sign In';
+                    authBtn.setAttribute('onclick', 'openAuthModal(event)');
+                }
+                if (homeAuthBtn) {
+                    homeAuthBtn.textContent = 'Admin Sign In';
+                    homeAuthBtn.setAttribute('onclick', 'openAuthModal(event)');
+                }
+
+                if (addBtn) addBtn.classList.add('hidden');
+                if (delAllBtn) delAllBtn.classList.add('hidden');
+            }
+            renderProjectsHome();
+            renderApp();
+        }
+
+        function openAuthModal(e) {
+            if (e) {
+                if (e.stopPropagation) e.stopPropagation();
+                if (e.preventDefault) e.preventDefault();
+            }
+            const modal = document.getElementById('auth-modal');
+            const err = document.getElementById('auth-error');
+            const userInp = document.getElementById('auth-username');
+            const passInp = document.getElementById('auth-password');
+            if (userInp) userInp.value = '';
+            if (passInp) passInp.value = '';
+            if (err) err.classList.add('hidden');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.style.display = 'flex';
+            }
+        }
+
+        function handleAuthSubmit(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('auth-username').value.trim();
+            const passwordInput = document.getElementById('auth-password').value;
+            const errEl = document.getElementById('auth-error');
+
+            if (usernameInput === 'admin' && passwordInput === 'admin124') {
+                currentUserRole = 'admin';
+                closeAuthModal();
+                updateRoleUI();
+            } else {
+                if (errEl) {
+                    errEl.textContent = 'Invalid username or password. Please try again.';
+                    errEl.classList.remove('hidden');
+                }
+            }
+        }
+
+        function closeAuthModal() {
+            const modal = document.getElementById('auth-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+            }
+        }
+
+        function signOutAdmin(e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            currentUserRole = 'guest';
+            updateRoleUI();
+        }
+
+        // Initialize application on page load
+        window.onload = function() {
+            initApp();
+        };
+    </script>
+</body>
+</html>
