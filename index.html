@@ -991,14 +991,16 @@
                 const apiUrl = `https://api.github.com/repos/${githubConfig.repo}/contents/${repoPath}`;
 
                 // Get current file SHA if missing
-                if (!githubConfig.sha) {
-                    const getRes = await fetch(`${apiUrl}?ref=${branch}`, {
-                        headers: { 'Authorization': `token ${githubConfig.token}` }
-                    });
-                    if (getRes.ok) {
-                        const getJson = await getRes.json();
-                        githubConfig.sha = getJson.sha;
+                const getRes = await fetch(`${apiUrl}?ref=${branch}`, {
+                    headers: { 
+                        'Authorization': `token ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
                     }
+                });
+
+                if (getRes.ok) {
+                    const getJson = await getRes.json();
+                    githubConfig.sha = getJson.sha;
                 }
 
                 const jsonContent = JSON.stringify({
@@ -1023,7 +1025,8 @@
                     method: 'PUT',
                     headers: {
                         'Authorization': `token ${githubConfig.token}`,
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/vnd.github.v3+json'
                     },
                     body: JSON.stringify(bodyPayload)
                 });
@@ -1037,10 +1040,12 @@
                 } else {
                     const errData = await putRes.json();
                     console.error('GitHub API error:', errData);
+                    alert(`GitHub Sync Failed: ${errData.message || 'Check your Personal Access Token and repository permissions.'}`);
                     return false;
                 }
             } catch (err) {
                 console.error('GitHub commit error:', err);
+                alert('GitHub Sync Failed: Unable to reach GitHub API. Check network connection.');
                 return false;
             }
         }
