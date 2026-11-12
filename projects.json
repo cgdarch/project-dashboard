@@ -513,9 +513,20 @@
           1794512944733
         ],
         "completed": false
+      },
+      {
+        "id": 1794513218210,
+        "taskNumber": "CO-04",
+        "category": "Coordination",
+        "assigneeId": "",
+        "description": "Coordination Meeting 02",
+        "startDate": "2026-12-07",
+        "dueDate": "2026-12-11",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:51 PM"
+    "lastSaved": "02:53 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
