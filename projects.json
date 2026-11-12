@@ -426,6 +426,17 @@
           1794512351756
         ],
         "completed": false
+      },
+      {
+        "id": 1794512395341,
+        "taskNumber": "DR-16",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Generate Interior Elevations",
+        "startDate": "2026-12-21",
+        "dueDate": "2026-12-25",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:39 PM"
