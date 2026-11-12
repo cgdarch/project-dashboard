@@ -213,9 +213,20 @@
           1794510265680
         ],
         "completed": false
+      },
+      {
+        "id": 1794510449551,
+        "taskNumber": "CO-03",
+        "category": "Coordination",
+        "assigneeId": "",
+        "description": "Coordinate Ceilings",
+        "startDate": "2026-11-30",
+        "dueDate": "2026-12-04",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:06 PM"
+    "lastSaved": "02:07 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
