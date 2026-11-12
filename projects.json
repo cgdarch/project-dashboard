@@ -163,9 +163,20 @@
         "dueDate": "2026-11-20",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794510244830,
+        "taskNumber": "DR-06",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Generate Initial Area Ceiling Plans",
+        "startDate": "2026-11-18",
+        "dueDate": "2026-11-20",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:03 PM"
+    "lastSaved": "02:04 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
