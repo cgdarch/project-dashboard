@@ -363,7 +363,9 @@
         "description": "Create / Update Storefront Types",
         "startDate": "2026-12-14",
         "dueDate": "2026-12-22",
-        "dependencies": [],
+        "dependencies": [
+          1794512230844
+        ],
         "completed": false
       }
     ],
