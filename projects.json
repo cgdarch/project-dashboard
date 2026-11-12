@@ -481,8 +481,8 @@
         "category": "Drawing",
         "assigneeId": "",
         "description": "Generate Head / Jamb / Sill Details",
-        "startDate": "2026-12-19",
-        "dueDate": "2026-12-24",
+        "startDate": "2026-12-16",
+        "dueDate": "2026-12-21",
         "dependencies": [
           1794512654601
         ],
