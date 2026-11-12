@@ -128,6 +128,17 @@
           1794510118554
         ],
         "completed": false
+      },
+      {
+        "id": 1794510158684,
+        "taskNumber": "DR-03",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Update Door Legend",
+        "startDate": "2026-11-23",
+        "dueDate": "2026-11-25",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:02 PM"
