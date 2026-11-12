@@ -483,7 +483,9 @@
         "description": "Generate Head / Jamb / Sill Details",
         "startDate": "2026-12-19",
         "dueDate": "2026-12-24",
-        "dependencies": [],
+        "dependencies": [
+          1794512654601
+        ],
         "completed": false
       }
     ],
