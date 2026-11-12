@@ -64,7 +64,7 @@
         "assigneeId": "tm-1794508052794",
         "description": "Coordination Meeting 01",
         "startDate": "2026-11-16",
-        "dueDate": "2026-11-16",
+        "dueDate": "2026-11-20",
         "dependencies": [],
         "completed": false
       },
@@ -215,7 +215,7 @@
         "completed": false
       }
     ],
-    "lastSaved": "02:05 PM"
+    "lastSaved": "02:06 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
