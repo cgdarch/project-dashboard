@@ -487,9 +487,20 @@
           1794512654601
         ],
         "completed": false
+      },
+      {
+        "id": 1794512944733,
+        "taskNumber": "DR-20",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Check / Overall Exterior Elevations",
+        "startDate": "2026-12-21",
+        "dueDate": "2026-11-27",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:48 PM"
+    "lastSaved": "02:49 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
