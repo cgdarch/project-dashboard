@@ -592,8 +592,8 @@
         "category": "Life Safety",
         "assigneeId": "",
         "description": "Update Life Safety Drawings",
-        "startDate": null,
-        "dueDate": "2026-12-17",
+        "startDate": "2026-12-14",
+        "dueDate": "2026-12-18",
         "dependencies": [],
         "completed": false
       }
