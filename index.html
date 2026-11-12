@@ -84,8 +84,8 @@
 </head>
 <body class="h-full flex flex-col font-sans overflow-hidden antialiased bg-slate-100 text-slate-800">
 
-    <!-- Top Navigation Bar -->
-    <header onclick="openHeaderModal()" class="bg-navy-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0 shadow-md select-none cursor-pointer hover:bg-navy-800/90 transition-colors group" title="Click anywhere on header to edit title, subtitle & logo">
+    <!-- Top Navigation Bar (Hidden on Portfolio Home View) -->
+    <header id="app-top-header" onclick="openHeaderModal()" class="hidden bg-navy-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0 shadow-md select-none cursor-pointer hover:bg-navy-800/90 transition-colors group" title="Click anywhere on header to edit title, subtitle & logo">
         <div class="flex items-center space-x-3">
             <div class="relative p-1 rounded-lg border border-red-500/30 bg-red-600/10 group-hover:bg-red-600/20 transition-all flex items-center justify-center min-w-[42px] min-h-[42px]">
                 <div id="header-logo-container">
@@ -164,7 +164,7 @@
                                 </button>
                             </div>
                         </div>
-                        <h2 class="text-2xl font-bold">Projects Portfolio Workspace</h2>
+                        <h2 class="text-2xl font-bold">Project Schedule Management</h2>
                         <p class="text-xs text-slate-400 max-w-xl">Select a project below to manage its timeline, dependencies, and schedule, or create a brand new project schedule.</p>
                     </div>
                     <button id="home-create-project-btn" onclick="openNewProjectModal()" class="z-10 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl shadow-lg shadow-red-600/30 flex items-center space-x-2 transition-all">
@@ -184,7 +184,7 @@
 
                 <!-- Discrete Home Footer with Admin-Only GitHub Sync -->
                 <footer class="pt-8 pb-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 gap-2">
-                    <span>Project Horizon Workspace • Portfolio Management</span>
+                    <span>Project Schedule Management • Created by Hayden E. Duncan</span>
                     <div id="home-footer-admin-sync" class="hidden items-center space-x-2">
                         <span id="github-sync-status-badge" class="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-200/70 text-slate-600 font-medium">
                             <span id="github-sync-dot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
@@ -487,35 +487,91 @@
     </div>
 
     <!-- New Project Modal -->
-    <div id="new-project-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden">
-        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-md p-6 shadow-2xl relative">
-            <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+    <div id="new-project-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden" onclick="if(event.target === this) closeNewProjectModal()">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-3xl p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200 shrink-0">
                 <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
                     <i class="fa-solid fa-folder-plus text-red-600"></i>
                     <span>Create New Project Workspace</span>
                 </h3>
-                <button onclick="closeNewProjectModal()" class="text-slate-400 hover:text-slate-700">
+                <button type="button" onclick="closeNewProjectModal()" class="text-slate-400 hover:text-slate-700 p-1">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
-            <form onsubmit="handleCreateProjectSubmit(event)" class="mt-4 space-y-4 text-xs">
-                <div>
-                    <label class="block font-semibold text-slate-600 uppercase mb-1">Project Name <span class="text-red-500">*</span></label>
-                    <input type="text" id="new-project-name" required placeholder="e.g. Commercial Office BIM Model" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+            <form onsubmit="handleCreateProjectSubmit(event)" class="mt-4 overflow-y-auto flex-1 space-y-4 pr-1 text-xs">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Project Name <span class="text-red-500">*</span></label>
+                        <input type="text" id="new-project-name" required placeholder="e.g. Commercial Office BIM Model" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Current Project Phase</label>
+                        <select id="new-project-phase" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                            <option value="Pre-Design / Programming">Pre-Design / Programming</option>
+                            <option value="Schematic Design (SD)">Schematic Design (SD)</option>
+                            <option value="Design Development (DD)">Design Development (DD)</option>
+                            <option value="Construction Documents (CD)">Construction Documents (CD)</option>
+                            <option value="Bidding & Negotiation">Bidding & Negotiation</option>
+                            <option value="Construction Administration (CA)">Construction Administration (CA)</option>
+                            <option value="Closeout">Closeout</option>
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label class="block font-semibold text-slate-600 uppercase mb-1">Subtitle / Scope</label>
-                    <input type="text" id="new-project-subtitle" placeholder="e.g. Architectural & MEP Coordination Phase 1" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Subtitle / Scope</label>
+                        <input type="text" id="new-project-subtitle" placeholder="e.g. Architectural & MEP Coordination Phase 1" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Project Address</label>
+                        <input type="text" id="new-project-address" placeholder="e.g. 1200 Main Street, Greenville, SC 29601" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    </div>
                 </div>
-                <div>
-                    <label class="block font-semibold text-slate-600 uppercase mb-1">Target Completion Deadline</label>
-                    <input type="date" id="new-project-deadline" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Project Start Date</label>
+                        <input type="date" id="new-project-start" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Project Due Date</label>
+                        <input type="date" id="new-project-deadline" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Project Budget</label>
+                        <input type="text" id="new-project-budget" placeholder="e.g. $4,500,000" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
+                    </div>
                 </div>
-                <div class="flex items-center space-x-2 pt-2">
+
+                <!-- Team Members & Roles Section -->
+                <div class="pt-3 border-t border-slate-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block font-semibold text-slate-600 uppercase">Project Team Members & Roles</label>
+                        <span class="text-[11px] text-slate-400">Available for task assignments</span>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-2 mb-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200 items-center">
+                        <input type="text" id="create-member-name" placeholder="Name (e.g. Jordan Lee)" class="w-full sm:flex-1 min-w-0 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 text-xs focus:outline-none focus:border-red-500">
+                        <input type="email" id="create-member-email" placeholder="Email (optional)" class="w-full sm:flex-1 min-w-0 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 text-xs focus:outline-none focus:border-red-500">
+                        <input type="text" id="create-member-role" placeholder="Role (e.g. Architect)" class="w-full sm:flex-1 min-w-0 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 text-xs focus:outline-none focus:border-red-500">
+                        <button type="button" onclick="addTeamMemberToNewProjectModal()" class="w-full sm:w-auto px-4 py-1.5 bg-slate-800 hover:bg-red-600 text-white rounded-lg font-semibold text-xs transition-colors shrink-0 flex items-center justify-center space-x-1">
+                            <i class="fa-solid fa-user-plus text-[10px]"></i>
+                            <span>Add</span>
+                        </button>
+                    </div>
+
+                    <div id="new-project-team-list" class="space-y-1.5 max-h-36 overflow-y-auto">
+                        <!-- Team members rendered dynamically -->
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 pt-2 border-t border-slate-100">
                     <input type="checkbox" id="new-project-sample" checked class="w-4 h-4 text-red-600 border-slate-300 rounded focus:ring-red-500 cursor-pointer">
                     <label for="new-project-sample" class="text-xs font-medium text-slate-700">Populate with starter task templates</label>
                 </div>
-                <div class="flex justify-end space-x-2 pt-4 border-t border-slate-200">
+
+                <div class="flex justify-end space-x-2 pt-4 border-t border-slate-200 shrink-0">
                     <button type="button" onclick="closeNewProjectModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
                     <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Create Project</button>
                 </div>
@@ -973,6 +1029,7 @@
         let projectBudget = '';
         let projectTeamMembers = [...DEFAULT_TEAM_MEMBERS];
         let modalTempTeamMembers = [];
+        let newProjectTempTeamMembers = [];
         let activeView = 'home'; // 'home', 'timeline', 'calendar', 'table'
         let activeTab = 'timeline';
         let projectsStore = {};
@@ -1291,12 +1348,14 @@
                 console.warn('LocalStorage save warning:', err);
             }
 
+            // Automatically triggers GitHub sync whenever task state or project info changes!
             scheduleGithubAutoPush();
             updateSaveIndicatorUI();
         }
 
         function switchView(viewName) {
             activeView = viewName;
+            const topHeader = document.getElementById('app-top-header');
             const homeView = document.getElementById('view-home');
             const sidebar = document.getElementById('main-sidebar');
             const mainArea = document.getElementById('project-main-area');
@@ -1306,6 +1365,7 @@
             const delAllBtn = document.getElementById('header-delete-all-btn');
 
             if (viewName === 'home') {
+                if (topHeader) topHeader.classList.add('hidden');
                 if (homeView) homeView.classList.remove('hidden');
                 if (sidebar) {
                     sidebar.classList.add('hidden');
@@ -1318,6 +1378,7 @@
                 if (delAllBtn) delAllBtn.classList.add('hidden');
                 renderProjectsHome();
             } else {
+                if (topHeader) topHeader.classList.remove('hidden');
                 if (homeView) homeView.classList.add('hidden');
                 if (sidebar) sidebar.classList.add('md:flex');
                 if (mainArea) mainArea.classList.remove('hidden');
@@ -1386,8 +1447,17 @@
             const modal = document.getElementById('new-project-modal');
             if (!modal) return;
             document.getElementById('new-project-name').value = '';
+            document.getElementById('new-project-phase').value = 'Pre-Design / Programming';
             document.getElementById('new-project-subtitle').value = '';
+            document.getElementById('new-project-address').value = '';
+            document.getElementById('new-project-start').value = formatDateOffset(0);
             document.getElementById('new-project-deadline').value = formatDateOffset(30);
+            document.getElementById('new-project-budget').value = '';
+            document.getElementById('create-member-name').value = '';
+            document.getElementById('create-member-email').value = '';
+            document.getElementById('create-member-role').value = '';
+            newProjectTempTeamMembers = JSON.parse(JSON.stringify(DEFAULT_TEAM_MEMBERS));
+            renderNewProjectModalTeamList();
             modal.classList.remove('hidden');
         }
 
@@ -1396,27 +1466,98 @@
             if (modal) modal.classList.add('hidden');
         }
 
+        function renderNewProjectModalTeamList() {
+            const container = document.getElementById('new-project-team-list');
+            if (!container) return;
+
+            if (newProjectTempTeamMembers.length === 0) {
+                container.innerHTML = `<div class="p-3 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-300">No team members added yet. Add members above or leave blank.</div>`;
+                return;
+            }
+
+            container.innerHTML = newProjectTempTeamMembers.map((member, idx) => `
+                <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    <div class="flex items-center space-x-2.5 min-w-0">
+                        <div class="w-6 h-6 rounded-full bg-navy-900 text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                            ${member.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        </div>
+                        <div class="truncate">
+                            <span class="font-bold text-slate-800 text-xs">${member.name}</span>
+                            <span class="text-slate-400 mx-1">•</span>
+                            <span class="text-slate-600 text-xs">${member.role || 'Team Member'}</span>
+                            ${member.email ? `<span class="text-slate-400 mx-1">•</span><span class="text-sky-700 font-mono text-[11px]">${member.email}</span>` : ''}
+                        </div>
+                    </div>
+                    <button type="button" onclick="removeTeamMemberFromNewProjectModal(${idx})" class="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors shrink-0" title="Remove Team Member">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function addTeamMemberToNewProjectModal() {
+            if (currentUserRole !== 'admin') return;
+            const nameInp = document.getElementById('create-member-name');
+            const emailInp = document.getElementById('create-member-email');
+            const roleInp = document.getElementById('create-member-role');
+            const name = nameInp.value.trim();
+            const email = emailInp ? emailInp.value.trim() : '';
+            const role = roleInp.value.trim() || 'Team Member';
+
+            if (!name) return;
+
+            newProjectTempTeamMembers.push({
+                id: `tm-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                name,
+                email,
+                role
+            });
+
+            nameInp.value = '';
+            if (emailInp) emailInp.value = '';
+            roleInp.value = '';
+            renderNewProjectModalTeamList();
+        }
+
+        function removeTeamMemberFromNewProjectModal(index) {
+            if (currentUserRole !== 'admin') return;
+            newProjectTempTeamMembers.splice(index, 1);
+            renderNewProjectModalTeamList();
+        }
+
         function handleCreateProjectSubmit(e) {
             e.preventDefault();
             if (currentUserRole !== 'admin') return;
 
             const name = document.getElementById('new-project-name').value.trim();
+            const phase = document.getElementById('new-project-phase').value || 'Pre-Design / Programming';
             const subtitle = document.getElementById('new-project-subtitle').value.trim() || 'Track tasks, dependencies, timeline & calendar';
+            const address = document.getElementById('new-project-address').value.trim();
+            const startDate = document.getElementById('new-project-start').value || formatDateOffset(0);
             const deadline = document.getElementById('new-project-deadline').value || formatDateOffset(30);
+            const budget = document.getElementById('new-project-budget').value.trim();
             const useSample = document.getElementById('new-project-sample').checked;
+
+            const validMemberIds = new Set(newProjectTempTeamMembers.map(m => m.id));
+            const initialTasks = useSample
+                ? JSON.parse(JSON.stringify(SAMPLE_TASKS)).map(t => ({
+                    ...t,
+                    assigneeId: validMemberIds.has(t.assigneeId) ? t.assigneeId : ''
+                }))
+                : [];
 
             const newId = `project-${Date.now()}`;
             projectsStore[newId] = {
                 id: newId,
                 name: name,
                 headerSettings: { title: name, subtitle: subtitle, logo: 'fa-list-check' },
-                address: '',
-                startDate: formatDateOffset(0),
+                address: address,
+                startDate: startDate,
                 deadline: deadline,
-                phase: 'Pre-Design / Programming',
-                budget: '',
-                teamMembers: [...DEFAULT_TEAM_MEMBERS],
-                tasks: useSample ? JSON.parse(JSON.stringify(SAMPLE_TASKS)) : [],
+                phase: phase,
+                budget: budget,
+                teamMembers: [...newProjectTempTeamMembers],
+                tasks: initialTasks,
                 lastSaved: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
 
