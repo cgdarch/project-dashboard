@@ -367,9 +367,20 @@
           1794512230844
         ],
         "completed": false
+      },
+      {
+        "id": 1794512293426,
+        "taskNumber": "M-11",
+        "category": "Modeling",
+        "assigneeId": "",
+        "description": "Check / Place Equipment",
+        "startDate": "2026-12-07",
+        "dueDate": "2026-12-11",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:37 PM"
+    "lastSaved": "02:38 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
