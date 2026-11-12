@@ -343,17 +343,6 @@
         "completed": false
       },
       {
-        "id": 1794512205357,
-        "taskNumber": "M-10",
-        "category": "Modeling",
-        "assigneeId": "",
-        "description": "Create / Update Storefront Types",
-        "startDate": "2026-12-10",
-        "dueDate": "2026-12-18",
-        "dependencies": [],
-        "completed": false
-      },
-      {
         "id": 1794512230844,
         "taskNumber": "DR-12",
         "category": "Drawing",
@@ -361,6 +350,17 @@
         "description": "Tag Storefronts in Plan",
         "startDate": "2026-12-10",
         "dueDate": "2026-12-12",
+        "dependencies": [],
+        "completed": false
+      },
+      {
+        "id": 1794512205357,
+        "taskNumber": "M-10",
+        "category": "Modeling",
+        "assigneeId": "",
+        "description": "Create / Update Storefront Types",
+        "startDate": "2026-12-10",
+        "dueDate": "2026-12-18",
         "dependencies": [],
         "completed": false
       }
