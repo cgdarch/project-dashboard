@@ -1,1 +1,116 @@
-
+{
+  "default-project": {
+    "id": "default-project",
+    "name": "Project Horizon Schedule",
+    "headerSettings": {
+      "title": "Project Horizon Schedule",
+      "subtitle": "Track tasks, dependencies, timeline & calendar",
+      "logo": "fa-list-check"
+    },
+    "address": "100 Main Street, Greenville, SC 29601",
+    "startDate": "2026-11-02",
+    "deadline": "2026-12-02",
+    "phase": "Design Development (DD)",
+    "budget": "$2,500,000",
+    "teamMembers": [
+      {
+        "id": "tm-1",
+        "name": "Alex Morgan",
+        "email": "alex.morgan@example.com",
+        "role": "Project Manager"
+      },
+      {
+        "id": "tm-2",
+        "name": "Taylor Brooks",
+        "email": "taylor.brooks@example.com",
+        "role": "Lead Architect"
+      },
+      {
+        "id": "tm-3",
+        "name": "Sam Rivera",
+        "email": "sam.rivera@example.com",
+        "role": "BIM Coordinator"
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "taskNumber": "G-01",
+        "category": "General",
+        "assigneeId": "tm-1",
+        "description": "Project Scope & Initial Requirements",
+        "startDate": "2026-11-05",
+        "dueDate": "2026-11-08",
+        "dependencies": [],
+        "completed": true
+      },
+      {
+        "id": 2,
+        "taskNumber": "DR-01",
+        "category": "Drawing",
+        "assigneeId": "tm-2",
+        "description": "Architectural Base Layout Drawings",
+        "startDate": "2026-11-08",
+        "dueDate": "2026-11-11",
+        "dependencies": [
+          1
+        ],
+        "completed": true
+      },
+      {
+        "id": 3,
+        "taskNumber": "LS-01",
+        "category": "Life Safety",
+        "assigneeId": "tm-1",
+        "description": "Egress & Life Safety Compliance Review",
+        "startDate": "2026-11-10",
+        "dueDate": "2026-11-14",
+        "dependencies": [
+          1
+        ],
+        "completed": false
+      },
+      {
+        "id": 4,
+        "taskNumber": "M-01",
+        "category": "Modeling",
+        "assigneeId": "tm-3",
+        "description": "3D Building Information Model (BIM)",
+        "startDate": "2026-11-14",
+        "dueDate": "2026-11-18",
+        "dependencies": [
+          2,
+          3
+        ],
+        "completed": false
+      },
+      {
+        "id": 5,
+        "taskNumber": "CO-01",
+        "category": "Coordination",
+        "assigneeId": "tm-3",
+        "description": "MEP Systems Spatial Coordination",
+        "startDate": "2026-11-15",
+        "dueDate": "2026-11-20",
+        "dependencies": [
+          4
+        ],
+        "completed": false
+      },
+      {
+        "id": 6,
+        "taskNumber": "DR-02",
+        "category": "Drawing",
+        "assigneeId": "tm-2",
+        "description": "Final Construction Documentation Set",
+        "startDate": "2026-11-20",
+        "dueDate": "2026-11-24",
+        "dependencies": [
+          5
+        ],
+        "completed": false
+      }
+    ],
+    "lastSaved": "12:39 PM"
+  }
+}
