@@ -102,6 +102,19 @@
         "dueDate": "2026-11-18",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794510118554,
+        "taskNumber": "DR-02",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Create Door Schedule",
+        "startDate": "2026-11-18",
+        "dueDate": "2026-11-20",
+        "dependencies": [
+          1794510101005
+        ],
+        "completed": false
       }
     ],
     "lastSaved": "02:01 PM"
