@@ -586,8 +586,8 @@
         "category": "Life Safety",
         "assigneeId": "",
         "description": "Check Life Safety Plans",
-        "startDate": "2027-01-18",
-        "dueDate": "2027-01-29",
+        "startDate": "2027-01-11",
+        "dueDate": "2027-01-22",
         "dependencies": [
           1794513399005
         ],
