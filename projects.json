@@ -80,9 +80,20 @@
           1794509706541
         ],
         "completed": false
+      },
+      {
+        "id": 1794510080784,
+        "taskNumber": "DR-01",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Generate / Setup / Fix Area Plans",
+        "startDate": "2026-11-16",
+        "dueDate": "2026-11-18",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "01:55 PM"
+    "lastSaved": "02:01 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
