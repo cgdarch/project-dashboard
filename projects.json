@@ -420,8 +420,8 @@
         "category": "Drawing",
         "assigneeId": "",
         "description": "Generate Initial Finish Plans",
-        "startDate": "2026-12-14",
-        "dueDate": "2026-12-18",
+        "startDate": "2026-12-09",
+        "dueDate": "2026-12-13",
         "dependencies": [],
         "completed": false
       }
