@@ -374,8 +374,8 @@
         "category": "Coordination",
         "assigneeId": "",
         "description": "Coordination Meeting 02",
-        "startDate": "2026-12-07",
-        "dueDate": "2026-12-11",
+        "startDate": "2026-11-30",
+        "dueDate": "2026-12-04",
         "dependencies": [
           1794510343753
         ],
