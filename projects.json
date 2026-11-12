@@ -447,7 +447,7 @@
         "assigneeId": "",
         "description": "Generate Millwork/Detailing",
         "startDate": "2026-12-14",
-        "dueDate": "2026-12-18",
+        "dueDate": "2027-01-06",
         "dependencies": [
           1794512395341
         ],
@@ -489,7 +489,7 @@
         "completed": false
       }
     ],
-    "lastSaved": "02:47 PM"
+    "lastSaved": "02:48 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
