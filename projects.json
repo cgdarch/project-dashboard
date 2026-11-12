@@ -433,8 +433,8 @@
         "category": "Drawing",
         "assigneeId": "",
         "description": "Generate Interior Elevations",
-        "startDate": "2026-12-21",
-        "dueDate": "2026-12-25",
+        "startDate": "2026-12-14",
+        "dueDate": "2026-12-18",
         "dependencies": [],
         "completed": false
       }
