@@ -562,9 +562,7 @@
         "description": "Coordination Meeting 04",
         "startDate": "2027-01-18",
         "dueDate": "2027-01-22",
-        "dependencies": [
-          1794513263550
-        ],
+        "dependencies": [],
         "completed": false
       },
       {
@@ -605,7 +603,7 @@
         "completed": false
       }
     ],
-    "lastSaved": "03:00 PM"
+    "lastSaved": "03:01 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
