@@ -500,9 +500,20 @@
           1794512697967
         ],
         "completed": false
+      },
+      {
+        "id": 1794513092265,
+        "taskNumber": "G-01",
+        "category": "General",
+        "assigneeId": "",
+        "description": "Generate / Tag Exterior Area Elevations",
+        "startDate": "2027-01-11",
+        "dueDate": "2027-01-22",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:49 PM"
+    "lastSaved": "02:51 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
