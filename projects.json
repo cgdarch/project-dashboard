@@ -34,5 +34,35 @@
     ],
     "tasks": [],
     "lastSaved": "01:27 PM"
+  },
+  "project-1794508148509": {
+    "id": "project-1794508148509",
+    "name": "Wren High School",
+    "headerSettings": {
+      "title": "Wren High School",
+      "subtitle": "Track tasks, dependencies, timeline & calendar",
+      "logo": "fa-list-check"
+    },
+    "address": "905 Wren School Road, Piedmont, South Carolina 29697",
+    "startDate": "2026-09-01",
+    "deadline": "2030-09-13",
+    "phase": "Schematic Design (SD)",
+    "budget": "$100,000,000",
+    "teamMembers": [
+      {
+        "id": "tm-1794508134567-100",
+        "name": "Hayden Duncan",
+        "email": "hduncan@cgdarch.com",
+        "role": "Project Manager"
+      },
+      {
+        "id": "tm-1794508146168-505",
+        "name": "Jaiden Davis",
+        "email": "jaiden.davis@cgdarch.com",
+        "role": "Technical Designer"
+      }
+    ],
+    "tasks": [],
+    "lastSaved": "01:29 PM"
   }
 }
