@@ -574,6 +574,17 @@
         "dueDate": "2027-01-29",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794513452752,
+        "taskNumber": "DR-22",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Final Drawing Check",
+        "startDate": null,
+        "dueDate": "2027-01-25",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:57 PM"
