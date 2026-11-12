@@ -300,7 +300,9 @@
         "description": "Update Stairs / Railings",
         "startDate": "2026-12-02",
         "dueDate": "2026-12-11",
-        "dependencies": [],
+        "dependencies": [
+          1794510956095
+        ],
         "completed": false
       }
     ],
