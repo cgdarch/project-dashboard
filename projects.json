@@ -535,7 +535,9 @@
         "description": "Coordination Meeting 03",
         "startDate": "2027-01-04",
         "dueDate": "2027-01-08",
-        "dependencies": [],
+        "dependencies": [
+          1794513218210
+        ],
         "completed": false
       }
     ],
