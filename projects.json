@@ -287,11 +287,13 @@
         "description": "Generate Enlarged Stair Sections",
         "startDate": "2026-11-30",
         "dueDate": "2026-12-03",
-        "dependencies": [],
+        "dependencies": [
+          1794510940442
+        ],
         "completed": false
       }
     ],
-    "lastSaved": "02:15 PM"
+    "lastSaved": "02:16 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
