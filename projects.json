@@ -585,9 +585,20 @@
         "dueDate": "2027-01-25",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794513485206,
+        "taskNumber": "LS-05",
+        "category": "Life Safety",
+        "assigneeId": "",
+        "description": "Update Life Safety Drawings",
+        "startDate": null,
+        "dueDate": "2026-12-17",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:57 PM"
+    "lastSaved": "02:58 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
