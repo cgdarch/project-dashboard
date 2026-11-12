@@ -369,6 +369,17 @@
         "completed": false
       },
       {
+        "id": 1794513218210,
+        "taskNumber": "CO-04",
+        "category": "Coordination",
+        "assigneeId": "",
+        "description": "Coordination Meeting 02",
+        "startDate": "2026-12-07",
+        "dueDate": "2026-12-11",
+        "dependencies": [],
+        "completed": false
+      },
+      {
         "id": 1794512293426,
         "taskNumber": "M-11",
         "category": "Modeling",
@@ -512,17 +523,6 @@
         "dependencies": [
           1794512944733
         ],
-        "completed": false
-      },
-      {
-        "id": 1794513218210,
-        "taskNumber": "CO-04",
-        "category": "Coordination",
-        "assigneeId": "",
-        "description": "Coordination Meeting 02",
-        "startDate": "2026-12-07",
-        "dueDate": "2026-12-11",
-        "dependencies": [],
         "completed": false
       }
     ],
