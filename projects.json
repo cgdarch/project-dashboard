@@ -546,7 +546,7 @@
         "category": "Coordination",
         "assigneeId": "",
         "description": "Coordination Meeting 04",
-        "startDate": null,
+        "startDate": "2027-01-25",
         "dueDate": "2027-01-29",
         "dependencies": [],
         "completed": false
