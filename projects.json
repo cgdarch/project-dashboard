@@ -552,6 +552,17 @@
           1794513263550
         ],
         "completed": false
+      },
+      {
+        "id": 1794513399005,
+        "taskNumber": "LS-03",
+        "category": "Life Safety",
+        "assigneeId": "",
+        "description": "Update OSF Form 3",
+        "startDate": null,
+        "dueDate": "2027-01-21",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:56 PM"
