@@ -176,6 +176,17 @@
           1794510217027
         ],
         "completed": false
+      },
+      {
+        "id": 1794510265680,
+        "taskNumber": "M-06",
+        "category": "Modeling",
+        "assigneeId": "",
+        "description": "Create / Place / Edit Ceilings",
+        "startDate": "2026-11-18",
+        "dueDate": "2026-11-27",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:04 PM"
