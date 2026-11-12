@@ -181,6 +181,21 @@
                         <!-- Project Cards rendered dynamically -->
                     </div>
                 </div>
+
+                <!-- Discrete Home Footer with Admin-Only GitHub Sync -->
+                <footer class="pt-8 pb-4 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 gap-2">
+                    <span>Project Horizon Workspace • Portfolio Management</span>
+                    <div id="home-footer-admin-sync" class="hidden items-center space-x-2">
+                        <span id="github-sync-status-badge" class="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-200/70 text-slate-600 font-medium">
+                            <span id="github-sync-dot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                            <span id="github-sync-label">Local Storage</span>
+                        </span>
+                        <button type="button" onclick="openGithubSyncModal()" class="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-200/80 hover:bg-slate-300/80 text-slate-600 hover:text-slate-900 font-medium transition-colors" title="Configure GitHub REST API Sync (projects.json)">
+                            <i class="fa-brands fa-github text-xs"></i>
+                            <span>Repo Sync</span>
+                        </button>
+                    </div>
+                </footer>
             </div>
         </div>
 
@@ -503,6 +518,66 @@
                 <div class="flex justify-end space-x-2 pt-4 border-t border-slate-200">
                     <button type="button" onclick="closeNewProjectModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
                     <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Create Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- GitHub REST API Sync Modal (Admin Only) -->
+    <div id="github-sync-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm hidden" onclick="if(event.target === this) closeGithubSyncModal()">
+        <div class="bg-white border border-slate-300 rounded-xl w-full max-w-md p-6 shadow-2xl relative" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                    <i class="fa-brands fa-github text-slate-800 text-lg"></i>
+                    <span>GitHub REST API Sync</span>
+                </h3>
+                <button type="button" onclick="closeGithubSyncModal()" class="text-slate-400 hover:text-slate-700 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form onsubmit="handleGithubSyncSave(event)" class="mt-4 space-y-3 text-xs">
+                <p class="text-[11px] text-slate-500">Sync all project schedules and team data directly to a <code class="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-700">projects.json</code> file in your GitHub repository.</p>
+                <div id="github-sync-feedback" class="hidden p-2.5 rounded-lg border text-xs font-medium"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Owner / Org <span class="text-red-500">*</span></label>
+                        <input type="text" id="gh-owner" required placeholder="e.g. acme-arch" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-red-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Repository <span class="text-red-500">*</span></label>
+                        <input type="text" id="gh-repo" required placeholder="e.g. project-schedules" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-red-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">Branch</label>
+                        <input type="text" id="gh-branch" value="main" placeholder="main" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-red-500">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-600 uppercase mb-1">File Path</label>
+                        <input type="text" id="gh-path" value="projects.json" placeholder="projects.json" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-red-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-600 uppercase mb-1">Personal Access Token (PAT) <span class="text-red-500">*</span></label>
+                    <input type="password" id="gh-token" required placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-red-500">
+                </div>
+                <div class="flex items-center justify-between pt-3 border-t border-slate-200 gap-2">
+                    <div class="flex items-center space-x-1.5">
+                        <button type="button" onclick="pullProjectsFromGithub(true)" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold transition-colors" title="Fetch latest projects.json from GitHub">
+                            <i class="fa-solid fa-cloud-arrow-down mr-1"></i>Pull
+                        </button>
+                        <button type="button" onclick="pushProjectsToGithub(true)" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-semibold transition-colors" title="Push current projects to GitHub">
+                            <i class="fa-solid fa-cloud-arrow-up mr-1"></i>Push
+                        </button>
+                        <button type="button" onclick="disconnectGithubSync()" class="px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50 font-medium transition-colors" title="Disconnect GitHub Sync">
+                            Disconnect
+                        </button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button type="button" onclick="closeGithubSyncModal()" class="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium">Close</button>
+                        <button type="submit" class="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold shadow-sm">Save & Sync</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -839,11 +914,15 @@
                         const targetTask = tasks.find(t => t.id === targetTaskId);
                         if (targetTask) {
                             if (!targetTask.dependencies) targetTask.dependencies = [];
-                            if (!targetTask.dependencies.includes(draggedTaskId)) {
+                            const existingIdx = targetTask.dependencies.indexOf(draggedTaskId);
+                            if (existingIdx > -1) {
+                                // Toggle off: remove existing dependency when dragged between linked tasks again
+                                targetTask.dependencies.splice(existingIdx, 1);
+                            } else {
                                 targetTask.dependencies.push(draggedTaskId);
-                                saveTasks();
-                                renderApp();
                             }
+                            saveTasks();
+                            renderApp();
                         }
                     }
                 }
@@ -901,6 +980,189 @@
         let lastSavedTime = null;
         let activeCategoryFilters = ['ALL'];
         let selectedTaskIds = [];
+        let githubConfig = null;
+        let githubFileSha = null;
+        let githubSyncTimeout = null;
+
+        function loadGithubConfig() {
+            try {
+                const raw = localStorage.getItem('project_horizon_github_cfg');
+                if (raw) githubConfig = JSON.parse(raw);
+            } catch (e) {
+                githubConfig = null;
+            }
+            updateGithubStatusUI();
+        }
+
+        function updateGithubStatusUI() {
+            const dot = document.getElementById('github-sync-dot');
+            const label = document.getElementById('github-sync-label');
+            if (!dot || !label) return;
+            if (githubConfig && githubConfig.owner && githubConfig.repo && githubConfig.token) {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+                label.textContent = `${githubConfig.owner}/${githubConfig.repo}`;
+            } else {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
+                label.textContent = 'Local Storage';
+            }
+        }
+
+        function showGithubFeedback(msg, isError = false) {
+            const el = document.getElementById('github-sync-feedback');
+            if (!el) return;
+            el.textContent = msg;
+            el.className = `p-2.5 rounded-lg border text-xs font-medium ${isError ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`;
+            el.classList.remove('hidden');
+        }
+
+        function openGithubSyncModal() {
+            if (currentUserRole !== 'admin') return;
+            const modal = document.getElementById('github-sync-modal');
+            const feedback = document.getElementById('github-sync-feedback');
+            if (feedback) feedback.classList.add('hidden');
+            if (githubConfig) {
+                document.getElementById('gh-owner').value = githubConfig.owner || '';
+                document.getElementById('gh-repo').value = githubConfig.repo || '';
+                document.getElementById('gh-branch').value = githubConfig.branch || 'main';
+                document.getElementById('gh-path').value = githubConfig.path || 'projects.json';
+                document.getElementById('gh-token').value = githubConfig.token || '';
+            } else {
+                document.getElementById('gh-owner').value = '';
+                document.getElementById('gh-repo').value = '';
+                document.getElementById('gh-branch').value = 'main';
+                document.getElementById('gh-path').value = 'projects.json';
+                document.getElementById('gh-token').value = '';
+            }
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeGithubSyncModal() {
+            document.getElementById('github-sync-modal')?.classList.add('hidden');
+        }
+
+        async function handleGithubSyncSave(e) {
+            e.preventDefault();
+            if (currentUserRole !== 'admin') return;
+            githubConfig = {
+                owner: document.getElementById('gh-owner').value.trim(),
+                repo: document.getElementById('gh-repo').value.trim(),
+                branch: document.getElementById('gh-branch').value.trim() || 'main',
+                path: document.getElementById('gh-path').value.trim() || 'projects.json',
+                token: document.getElementById('gh-token').value.trim()
+            };
+            localStorage.setItem('project_horizon_github_cfg', JSON.stringify(githubConfig));
+            updateGithubStatusUI();
+            await pushProjectsToGithub(true);
+        }
+
+        function disconnectGithubSync() {
+            if (currentUserRole !== 'admin') return;
+            githubConfig = null;
+            githubFileSha = null;
+            localStorage.removeItem('project_horizon_github_cfg');
+            updateGithubStatusUI();
+            showGithubFeedback('Disconnected from GitHub repository.');
+        }
+
+        async function pullProjectsFromGithub(notify = false) {
+            if (!githubConfig || !githubConfig.owner || !githubConfig.repo || !githubConfig.token) return false;
+            const path = githubConfig.path || 'projects.json';
+            const branch = githubConfig.branch || 'main';
+            const url = `https://api.github.com/repos/${encodeURIComponent(githubConfig.owner)}/${encodeURIComponent(githubConfig.repo)}/contents/${path}?ref=${encodeURIComponent(branch)}`;
+            try {
+                const res = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github+json'
+                    }
+                });
+                if (!res.ok) {
+                    if (notify) showGithubFeedback(`GitHub pull failed (${res.status}). Check repo, branch, or token.`, true);
+                    return false;
+                }
+                const data = await res.json();
+                githubFileSha = data.sha;
+                const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+                const parsed = JSON.parse(decoded);
+                if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                    projectsStore = parsed;
+                    localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
+                    if (!projectsStore[activeProjectId]) {
+                        activeProjectId = Object.keys(projectsStore)[0];
+                    }
+                    loadActiveProjectData();
+                    renderHeader();
+                    renderCategoryFilterList();
+                    if (activeView === 'home') renderProjectsHome();
+                    else renderApp();
+                }
+                if (notify) showGithubFeedback(`Successfully pulled ${path} from GitHub.`);
+                return true;
+            } catch (err) {
+                if (notify) showGithubFeedback(`Error pulling from GitHub: ${err.message}`, true);
+                return false;
+            }
+        }
+
+        async function pushProjectsToGithub(notify = false) {
+            if (!githubConfig || !githubConfig.owner || !githubConfig.repo || !githubConfig.token) return false;
+            const path = githubConfig.path || 'projects.json';
+            const branch = githubConfig.branch || 'main';
+            const url = `https://api.github.com/repos/${encodeURIComponent(githubConfig.owner)}/${encodeURIComponent(githubConfig.repo)}/contents/${path}`;
+            try {
+                if (!githubFileSha) {
+                    const checkRes = await fetch(`${url}?ref=${encodeURIComponent(branch)}`, {
+                        headers: {
+                            'Authorization': `Bearer ${githubConfig.token}`,
+                            'Accept': 'application/vnd.github+json'
+                        }
+                    });
+                    if (checkRes.ok) {
+                        const existing = await checkRes.json();
+                        githubFileSha = existing.sha;
+                    }
+                }
+                const jsonString = JSON.stringify(projectsStore, null, 2);
+                const encodedContent = btoa(unescape(encodeURIComponent(jsonString)));
+                const payload = {
+                    message: `Update ${path} via Project Schedule Dashboard`,
+                    content: encodedContent,
+                    branch: branch
+                };
+                if (githubFileSha) payload.sha = githubFileSha;
+
+                const putRes = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${githubConfig.token}`,
+                        'Accept': 'application/vnd.github+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (!putRes.ok) {
+                    if (notify) showGithubFeedback(`GitHub push failed (${putRes.status}). Verify token repo permissions.`, true);
+                    return false;
+                }
+                const result = await putRes.json();
+                if (result.content && result.content.sha) {
+                    githubFileSha = result.content.sha;
+                }
+                if (notify) showGithubFeedback(`Synced projects to ${githubConfig.owner}/${githubConfig.repo}/${path}.`);
+                return true;
+            } catch (err) {
+                if (notify) showGithubFeedback(`Error pushing to GitHub: ${err.message}`, true);
+                return false;
+            }
+        }
+
+        function scheduleGithubAutoPush() {
+            if (!githubConfig || !githubConfig.token) return;
+            clearTimeout(githubSyncTimeout);
+            githubSyncTimeout = setTimeout(() => {
+                pushProjectsToGithub(false);
+            }, 1200);
+        }
 
         function loadActiveProjectData() {
             const currentProj = projectsStore[activeProjectId];
@@ -918,7 +1180,8 @@
             renderAssigneeFilterDropdown();
         }
 
-        function initApp() {
+        async function initApp() {
+            loadGithubConfig();
             const savedProjects = localStorage.getItem('project_horizon_all_projects');
             const savedActiveId = localStorage.getItem('project_horizon_active_id');
 
@@ -928,6 +1191,10 @@
                 } catch (e) {
                     projectsStore = {};
                 }
+            }
+
+            if (githubConfig && githubConfig.token) {
+                await pullProjectsFromGithub(false);
             }
 
             if (Object.keys(projectsStore).length === 0) {
@@ -991,6 +1258,7 @@
                 console.warn('LocalStorage save warning:', err);
             }
 
+            scheduleGithubAutoPush();
             updateSaveIndicatorUI();
         }
 
@@ -1206,6 +1474,17 @@
                 if (currentUserRole === 'admin') createBtn.classList.remove('hidden');
                 else createBtn.classList.add('hidden');
             }
+
+            const footerSyncBox = document.getElementById('home-footer-admin-sync');
+            if (footerSyncBox) {
+                if (currentUserRole === 'admin') {
+                    footerSyncBox.classList.remove('hidden');
+                    footerSyncBox.classList.add('flex');
+                } else {
+                    footerSyncBox.classList.add('hidden');
+                    footerSyncBox.classList.remove('flex');
+                }
+            }
         }
 
         // PROJECT INFORMATION & TEAM MODAL LOGIC
@@ -1397,10 +1676,18 @@
             const options = ['ALL', ...ALLOWED_CATEGORIES];
             container.innerHTML = options.map(cat => {
                 const isActive = activeCategoryFilters.includes(cat);
+                const catColor = CATEGORY_COLORS[cat] || CATEGORY_COLORS['Default'];
+                const swatchHtml = cat === 'ALL'
+                    ? `<span class="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-sky-500 via-indigo-500 to-rose-500 shrink-0 ${isActive ? 'ring-1 ring-white/80' : ''}"></span>`
+                    : `<span class="w-2.5 h-2.5 rounded-full ${catColor.bg} shrink-0 ${isActive ? 'ring-1 ring-white' : ''}"></span>`;
+
                 return `
                     <button type="button" onclick="toggleCategoryFilter('${cat}')" class="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${isActive ? 'bg-red-600 text-white shadow-sm' : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'}">
-                        <span>${cat === 'ALL' ? 'All Categories' : cat}</span>
-                        ${isActive ? '<i class="fa-solid fa-check text-[10px]"></i>' : ''}
+                        <span class="flex items-center space-x-2 min-w-0">
+                            ${swatchHtml}
+                            <span class="truncate">${cat === 'ALL' ? 'All Categories' : cat}</span>
+                        </span>
+                        ${isActive ? '<i class="fa-solid fa-check text-[10px] shrink-0"></i>' : ''}
                     </button>
                 `;
             }).join('');
@@ -1684,7 +1971,7 @@
                     <!-- Rows & SVG Dependency Overlay -->
                     <div class="relative">
                         ${rowsHtml}
-                        <svg id="dependency-svg" style="left: ${taskColW}px; width: ${totalGridWidth}px; height: ${totalHeight}px;" class="absolute top-0 pointer-events-none z-10 overflow-visible">
+                        <svg id="dependency-svg" style="left: ${taskColW}px; width: ${totalGridWidth}px; height: ${totalHeight}px;" class="absolute top-0 pointer-events-none z-[5] overflow-visible">
                             <defs>
                                 <marker id="dep-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
                                     <path d="M0,0 L6,3 L0,6 Z" fill="#64748b" />
@@ -1849,12 +2136,37 @@
                 const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const isToday = iso === todayStr;
 
-                const dayTasks = filtered.filter(t => t.dueDate === iso);
+                const dayTasks = filtered.filter(t => {
+                    const start = t.startDate || t.dueDate;
+                    const end = t.dueDate;
+                    if (!end) return false;
+                    return iso >= start && iso <= end;
+                });
                 const tasksHtml = dayTasks.map(t => {
                     const catColor = CATEGORY_COLORS[t.category] || CATEGORY_COLORS['Default'];
+                    const start = t.startDate || t.dueDate;
+                    const end = t.dueDate;
+                    const isStart = iso === start;
+                    const isEnd = iso === end;
+                    const isSingleDay = start === end;
+
+                    let spanShape = 'rounded';
+                    let spanBadge = '';
+                    if (!isSingleDay) {
+                        if (isStart) {
+                            spanShape = 'rounded-l rounded-r-none border-r-0';
+                            spanBadge = '<span class="text-[9px] opacity-75 mr-1">▶</span>';
+                        } else if (isEnd) {
+                            spanShape = 'rounded-r rounded-l-none border-l-0';
+                            spanBadge = '<span class="text-[9px] opacity-75 ml-1 float-right">Due</span>';
+                        } else {
+                            spanShape = 'rounded-none border-x-0 opacity-85';
+                        }
+                    }
+
                     return `
-                        <div onclick="handleTaskNameClick(${t.id})" class="px-1.5 py-1 rounded text-[10px] font-semibold truncate cursor-pointer border ${t.completed ? 'bg-emerald-50 text-emerald-700 border-emerald-200 line-through opacity-75' : `${catColor.badge} ${catColor.border}`} hover:opacity-90 transition-opacity" title="${t.taskNumber}: ${t.description}">
-                            <span class="font-mono font-bold">${t.taskNumber}</span> ${t.description}
+                        <div onclick="handleTaskNameClick(${t.id})" class="px-1.5 py-1 ${spanShape} text-[10px] font-semibold truncate cursor-pointer border ${t.completed ? 'bg-emerald-50 text-emerald-700 border-emerald-200 line-through opacity-75' : `${catColor.badge} ${catColor.border}`} hover:opacity-90 transition-opacity" title="${t.taskNumber}: ${t.description} (${formatDateString(start)} – ${formatDateString(end)})">
+                            ${spanBadge}<span class="font-mono font-bold">${t.taskNumber}</span> ${t.description}
                         </div>
                     `;
                 }).join('');
@@ -1863,7 +2175,7 @@
                     <div class="min-h-[110px] bg-white border-b border-r border-slate-200 p-1.5 flex flex-col ${isToday ? 'ring-2 ring-inset ring-red-500/40 bg-red-50/10' : ''}">
                         <div class="flex justify-between items-center mb-1">
                             <span class="text-xs font-bold ${isToday ? 'w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center' : 'text-slate-700'}">${day}</span>
-                            ${dayTasks.length > 0 ? `<span class="text-[10px] text-slate-400 font-medium">${dayTasks.length} due</span>` : ''}
+                            ${dayTasks.length > 0 ? `<span class="text-[10px] text-slate-400 font-medium">${dayTasks.length} active</span>` : ''}
                         </div>
                         <div class="space-y-1 overflow-y-auto flex-1">${tasksHtml}</div>
                     </div>
