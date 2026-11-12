@@ -1,38 +1,38 @@
 {
   "default-project": {
     "id": "default-project",
-    "name": "Project Horizon Schedule",
+    "name": "Palmetto High School",
     "headerSettings": {
-      "title": "Project Horizon Schedule",
+      "title": "Palmetto High School",
       "subtitle": "Track tasks, dependencies, timeline & calendar",
       "logo": "fa-list-check"
     },
-    "address": "100 Main Street, Greenville, SC 29601",
-    "startDate": "2026-11-02",
-    "deadline": "2026-12-02",
+    "address": "804 North Hamilton Street, Williamston, South Carolina 29697",
+    "startDate": "2026-09-01",
+    "deadline": "2029-09-14",
     "phase": "Design Development (DD)",
-    "budget": "$2,500,000",
+    "budget": "$100,000,000",
     "teamMembers": [
       {
-        "id": "tm-1",
-        "name": "Alex Morgan",
-        "email": "alex.morgan@example.com",
+        "id": "tm-1794508052794",
+        "name": "Hayden Duncan",
+        "email": "hduncan@cgdarch.com",
+        "role": "Project Architect"
+      },
+      {
+        "id": "tm-1794508064304",
+        "name": "Jessica Greer",
+        "email": "jessica.greer@cgdarch.com",
         "role": "Project Manager"
       },
       {
-        "id": "tm-2",
-        "name": "Taylor Brooks",
-        "email": "taylor.brooks@example.com",
-        "role": "Lead Architect"
-      },
-      {
-        "id": "tm-3",
-        "name": "Sam Rivera",
-        "email": "sam.rivera@example.com",
-        "role": "BIM Coordinator"
+        "id": "tm-1794508075929",
+        "name": "Jaiden Davis",
+        "email": "jaiden.davis@cgdarch.com",
+        "role": "Technical Designer"
       }
     ],
     "tasks": [],
-    "lastSaved": "01:26 PM"
+    "lastSaved": "01:27 PM"
   }
 }
