@@ -458,7 +458,7 @@
         "taskNumber": "DR-17",
         "category": "Drawing",
         "assigneeId": "",
-        "description": "Begin Wall Sections",
+        "description": "Wall Sections",
         "startDate": "2026-11-30",
         "dueDate": "2026-12-18",
         "dependencies": [],
