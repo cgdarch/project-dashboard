@@ -348,8 +348,8 @@
         "category": "Drawing",
         "assigneeId": "",
         "description": "Tag Storefronts in Plan",
-        "startDate": "2026-12-10",
-        "dueDate": "2026-12-12",
+        "startDate": "2026-12-09",
+        "dueDate": "2026-12-10",
         "dependencies": [
           1794512155863
         ],
