@@ -291,6 +291,17 @@
           1794510940442
         ],
         "completed": false
+      },
+      {
+        "id": 1794510977554,
+        "taskNumber": "M-09",
+        "category": "Modeling",
+        "assigneeId": "",
+        "description": "Update Stairs / Railings",
+        "startDate": "2026-12-08",
+        "dueDate": "2026-12-11",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:16 PM"
