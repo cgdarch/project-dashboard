@@ -400,9 +400,20 @@
         "dueDate": "2026-12-11",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794512351756,
+        "taskNumber": "DR-14",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Generate Finish Schedule",
+        "startDate": "2026-12-07",
+        "dueDate": "2026-12-11",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:38 PM"
+    "lastSaved": "02:39 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
