@@ -439,9 +439,20 @@
           1794512368992
         ],
         "completed": false
+      },
+      {
+        "id": 1794512414691,
+        "taskNumber": "M-13",
+        "category": "Modeling",
+        "assigneeId": "",
+        "description": "Generate Millwork/Detailing",
+        "startDate": "2026-12-14",
+        "dueDate": "2026-12-17",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:39 PM"
+    "lastSaved": "02:40 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
