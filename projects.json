@@ -352,9 +352,20 @@
         "dueDate": "2026-12-18",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794512230844,
+        "taskNumber": "DR-12",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Tag Storefronts in Plan",
+        "startDate": "2026-12-14",
+        "dueDate": "2026-12-16",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:36 PM"
+    "lastSaved": "02:37 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
