@@ -341,6 +341,17 @@
         "dueDate": "2026-12-11",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794512205357,
+        "taskNumber": "M-10",
+        "category": "Modeling",
+        "assigneeId": "",
+        "description": "Create / Update Storefront Types",
+        "startDate": "2026-12-03",
+        "dueDate": "2026-12-10",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:36 PM"
