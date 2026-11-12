@@ -137,7 +137,9 @@
         "description": "Update Door Legend",
         "startDate": "2026-11-23",
         "dueDate": "2026-11-24",
-        "dependencies": [],
+        "dependencies": [
+          1794510135498
+        ],
         "completed": false
       }
     ],
