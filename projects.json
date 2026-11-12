@@ -330,9 +330,20 @@
           1794510977554
         ],
         "completed": false
+      },
+      {
+        "id": 1794512155863,
+        "taskNumber": "DR-11",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Generate Initial Storefront Elevations",
+        "startDate": "2026-12-07",
+        "dueDate": "2026-12-10",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:17 PM"
+    "lastSaved": "02:35 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
