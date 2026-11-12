@@ -313,7 +313,9 @@
         "description": "Generate Initial Stair / Railing Details",
         "startDate": "2026-12-07",
         "dueDate": "2026-12-11",
-        "dependencies": [],
+        "dependencies": [
+          1794510977554
+        ],
         "completed": false
       }
     ],
