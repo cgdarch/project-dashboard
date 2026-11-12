@@ -581,7 +581,7 @@
         "category": "Drawing",
         "assigneeId": "",
         "description": "Final Drawing Check",
-        "startDate": null,
+        "startDate": "2027-01-18",
         "dueDate": "2027-01-25",
         "dependencies": [],
         "completed": false
