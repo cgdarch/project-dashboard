@@ -563,9 +563,20 @@
         "dueDate": "2027-01-22",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794513421244,
+        "taskNumber": "LS-04",
+        "category": "Life Safety",
+        "assigneeId": "",
+        "description": "Check Life Safety Plans",
+        "startDate": null,
+        "dueDate": "2027-01-25",
+        "dependencies": [],
+        "completed": false
       }
     ],
-    "lastSaved": "02:56 PM"
+    "lastSaved": "02:57 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
