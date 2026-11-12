@@ -115,9 +115,22 @@
           1794510101005
         ],
         "completed": false
+      },
+      {
+        "id": 1794510135498,
+        "taskNumber": "M-05",
+        "category": "Modeling",
+        "assigneeId": "",
+        "description": "Check / Update Door Types",
+        "startDate": "2026-11-18",
+        "dueDate": "2026-11-20",
+        "dependencies": [
+          1794510118554
+        ],
+        "completed": false
       }
     ],
-    "lastSaved": "02:01 PM"
+    "lastSaved": "02:02 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
