@@ -67,6 +67,19 @@
         "dueDate": "2026-11-18",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794509730834,
+        "taskNumber": "M-03",
+        "category": "Modeling",
+        "assigneeId": "tm-1794508052794",
+        "description": "Cleanup Dimensions / Grids",
+        "startDate": "2026-11-18",
+        "dueDate": "2026-11-24",
+        "dependencies": [
+          1794509706541
+        ],
+        "completed": false
       }
     ],
     "lastSaved": "01:55 PM"
