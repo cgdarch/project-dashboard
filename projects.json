@@ -161,7 +161,9 @@
         "description": "Generate Initial Dimension Plans",
         "startDate": "2026-11-18",
         "dueDate": "2026-11-20",
-        "dependencies": [],
+        "dependencies": [
+          1794508219726
+        ],
         "completed": false
       },
       {
