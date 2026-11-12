@@ -267,6 +267,17 @@
           1794510851467
         ],
         "completed": false
+      },
+      {
+        "id": 1794510940442,
+        "taskNumber": "DR-08",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Generate Enlarged Stair Plans",
+        "startDate": "2026-12-01",
+        "dueDate": "2026-12-04",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:15 PM"
