@@ -382,6 +382,17 @@
         "completed": false
       },
       {
+        "id": 1794513485206,
+        "taskNumber": "LS-05",
+        "category": "Life Safety",
+        "assigneeId": "",
+        "description": "Update Life Safety Drawings",
+        "startDate": "2026-12-14",
+        "dueDate": "2026-12-18",
+        "dependencies": [],
+        "completed": false
+      },
+      {
         "id": 1794512293426,
         "taskNumber": "M-11",
         "category": "Modeling",
@@ -400,17 +411,6 @@
         "description": "Check / Place Furniture",
         "startDate": "2026-12-07",
         "dueDate": "2026-12-11",
-        "dependencies": [],
-        "completed": false
-      },
-      {
-        "id": 1794513485206,
-        "taskNumber": "LS-05",
-        "category": "Life Safety",
-        "assigneeId": "",
-        "description": "Update Life Safety Drawings",
-        "startDate": "2026-12-14",
-        "dueDate": "2026-12-18",
         "dependencies": [],
         "completed": false
       },
