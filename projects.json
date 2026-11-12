@@ -198,7 +198,9 @@
         "description": "Create / Place / Edit Lights",
         "startDate": "2026-11-23",
         "dueDate": "2026-11-27",
-        "dependencies": [],
+        "dependencies": [
+          1794510265680
+        ],
         "completed": false
       }
     ],
