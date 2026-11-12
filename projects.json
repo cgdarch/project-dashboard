@@ -474,6 +474,17 @@
         "dueDate": "2026-12-18",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794512697967,
+        "taskNumber": "DR-19",
+        "category": "Drawing",
+        "assigneeId": "",
+        "description": "Generate Head / Jamb / Sill Details",
+        "startDate": "2026-12-07",
+        "dueDate": "2026-11-17",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:44 PM"
