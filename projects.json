@@ -467,6 +467,19 @@
         "completed": false
       },
       {
+        "id": 1794513263550,
+        "taskNumber": "CO-05",
+        "category": "Coordination",
+        "assigneeId": "",
+        "description": "Coordination Meeting 03",
+        "startDate": "2027-01-04",
+        "dueDate": "2027-01-08",
+        "dependencies": [
+          1794513218210
+        ],
+        "completed": false
+      },
+      {
         "id": 1794512640223,
         "taskNumber": "DR-17",
         "category": "Drawing",
@@ -524,19 +537,6 @@
         "dueDate": "2027-01-15",
         "dependencies": [
           1794512944733
-        ],
-        "completed": false
-      },
-      {
-        "id": 1794513263550,
-        "taskNumber": "CO-05",
-        "category": "Coordination",
-        "assigneeId": "",
-        "description": "Coordination Meeting 03",
-        "startDate": "2027-01-04",
-        "dueDate": "2027-01-08",
-        "dependencies": [
-          1794513218210
         ],
         "completed": false
       },
