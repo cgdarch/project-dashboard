@@ -1071,6 +1071,7 @@
             const url = `https://api.github.com/repos/${encodeURIComponent(githubConfig.owner)}/${encodeURIComponent(githubConfig.repo)}/contents/${path}?ref=${encodeURIComponent(branch)}`;
             try {
                 const res = await fetch(url, {
+                    cache: 'no-store',
                     headers: {
                         'Authorization': `Bearer ${githubConfig.token}`,
                         'Accept': 'application/vnd.github+json'
@@ -1104,44 +1105,76 @@
             }
         }
 
+        async function fetchLatestGithubFileSha(url, branch, token) {
+            const checkRes = await fetch(`${url}?ref=${encodeURIComponent(branch)}&_=${Date.now()}`, {
+                cache: 'no-store',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json'
+                }
+            });
+            if (checkRes.ok) {
+                const existing = await checkRes.json();
+                return existing.sha || null;
+            }
+            return null;
+        }
+
         async function pushProjectsToGithub(notify = false) {
             if (!githubConfig || !githubConfig.owner || !githubConfig.repo || !githubConfig.token) return false;
             const path = githubConfig.path || 'projects.json';
             const branch = githubConfig.branch || 'main';
             const url = `https://api.github.com/repos/${encodeURIComponent(githubConfig.owner)}/${encodeURIComponent(githubConfig.repo)}/contents/${path}`;
             try {
-                if (!githubFileSha) {
-                    const checkRes = await fetch(`${url}?ref=${encodeURIComponent(branch)}`, {
-                        headers: {
-                            'Authorization': `Bearer ${githubConfig.token}`,
-                            'Accept': 'application/vnd.github+json'
-                        }
-                    });
-                    if (checkRes.ok) {
-                        const existing = await checkRes.json();
-                        githubFileSha = existing.sha;
-                    }
+                // Always fetch the latest uncached SHA so external edits or browser cache never cause a 409 Conflict
+                const latestSha = await fetchLatestGithubFileSha(url, branch, githubConfig.token);
+                if (latestSha) {
+                    githubFileSha = latestSha;
                 }
+
                 const jsonString = JSON.stringify(projectsStore, null, 2);
                 const encodedContent = btoa(unescape(encodeURIComponent(jsonString)));
-                const payload = {
-                    message: `Update ${path} via Project Schedule Dashboard`,
-                    content: encodedContent,
-                    branch: branch
+                const buildPayload = (shaVal) => {
+                    const p = {
+                        message: `Update ${path} via Project Schedule Dashboard`,
+                        content: encodedContent,
+                        branch: branch
+                    };
+                    if (shaVal) p.sha = shaVal;
+                    return p;
                 };
-                if (githubFileSha) payload.sha = githubFileSha;
 
-                const putRes = await fetch(url, {
+                let putRes = await fetch(url, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${githubConfig.token}`,
                         'Accept': 'application/vnd.github+json',
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(buildPayload(githubFileSha))
                 });
+
+                // Automatic retry once if a concurrent commit caused a 409 Conflict
+                if (putRes.status === 409) {
+                    const refreshedSha = await fetchLatestGithubFileSha(url, branch, githubConfig.token);
+                    if (refreshedSha) {
+                        githubFileSha = refreshedSha;
+                        putRes = await fetch(url, {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `Bearer ${githubConfig.token}`,
+                                'Accept': 'application/vnd.github+json',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(buildPayload(githubFileSha))
+                        });
+                    }
+                }
+
                 if (!putRes.ok) {
-                    if (notify) showGithubFeedback(`GitHub push failed (${putRes.status}). Verify token repo permissions.`, true);
+                    const errBody = await putRes.json().catch(() => ({}));
+                    const detail = errBody.message ? ` (${errBody.message})` : '';
+                    if (notify) showGithubFeedback(`GitHub push failed (${putRes.status})${detail}. If repo is empty, initialize it with a README first.`, true);
                     return false;
                 }
                 const result = await putRes.json();
