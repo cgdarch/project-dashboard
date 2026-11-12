@@ -189,6 +189,17 @@
           1794510244830
         ],
         "completed": false
+      },
+      {
+        "id": 1794510286427,
+        "taskNumber": "M-07",
+        "category": "Modeling",
+        "assigneeId": "",
+        "description": "Create / Place / Edit Lights",
+        "startDate": "2026-11-18",
+        "dueDate": "2026-11-20",
+        "dependencies": [],
+        "completed": false
       }
     ],
     "lastSaved": "02:04 PM"
