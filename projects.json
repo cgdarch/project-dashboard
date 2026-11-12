@@ -43,9 +43,22 @@
         "dueDate": "2026-11-16",
         "dependencies": [],
         "completed": false
+      },
+      {
+        "id": 1794508219726,
+        "taskNumber": "CO-01",
+        "category": "Coordination",
+        "assigneeId": "",
+        "description": "Coordinate Grid Lines",
+        "startDate": "2026-11-09",
+        "dueDate": "2026-11-16",
+        "dependencies": [
+          1794508194180
+        ],
+        "completed": false
       }
     ],
-    "lastSaved": "01:29 PM"
+    "lastSaved": "01:30 PM"
   },
   "project-1794508148509": {
     "id": "project-1794508148509",
