@@ -333,6 +333,19 @@
         "completed": false
       },
       {
+        "id": 1794513485206,
+        "taskNumber": "LS-05",
+        "category": "Life Safety",
+        "assigneeId": "",
+        "description": "Update Life Safety Drawings",
+        "startDate": "2026-12-21",
+        "dueDate": "2026-12-25",
+        "dependencies": [
+          1794511025706
+        ],
+        "completed": false
+      },
+      {
         "id": 1794512155863,
         "taskNumber": "DR-11",
         "category": "Drawing",
@@ -464,19 +477,6 @@
         "dueDate": "2027-01-01",
         "dependencies": [
           1794512395341
-        ],
-        "completed": false
-      },
-      {
-        "id": 1794513485206,
-        "taskNumber": "LS-05",
-        "category": "Life Safety",
-        "assigneeId": "",
-        "description": "Update Life Safety Drawings",
-        "startDate": "2026-12-21",
-        "dueDate": "2026-12-25",
-        "dependencies": [
-          1794511025706
         ],
         "completed": false
       },
