@@ -1041,6 +1041,15 @@
         let githubFileSha = null;
         let githubSyncTimeout = null;
 
+        // Public read-only GitHub source so Guest users on any device load the live projects.json
+        // Update owner & repo here to match your GitHub repository (or configure via Admin Repo Sync)
+        const PUBLIC_GITHUB_SOURCE = {
+            owner: '', // e.g. 'your-github-username'
+            repo: '',  // e.g. 'your-repo-name'
+            branch: 'main',
+            path: 'projects.json'
+        };
+
         function loadGithubConfig() {
             try {
                 const raw = localStorage.getItem('project_horizon_github_cfg');
@@ -1058,6 +1067,9 @@
             if (githubConfig && githubConfig.owner && githubConfig.repo && githubConfig.token) {
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
                 label.textContent = `${githubConfig.owner}/${githubConfig.repo}`;
+            } else if (PUBLIC_GITHUB_SOURCE.owner && PUBLIC_GITHUB_SOURCE.repo) {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-sky-500';
+                label.textContent = `Read-Only: ${PUBLIC_GITHUB_SOURCE.owner}/${PUBLIC_GITHUB_SOURCE.repo}`;
             } else {
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
                 label.textContent = 'Local Storage';
@@ -1122,26 +1134,47 @@
         }
 
         async function pullProjectsFromGithub(notify = false) {
-            if (!githubConfig || !githubConfig.owner || !githubConfig.repo || !githubConfig.token) return false;
-            const path = githubConfig.path || 'projects.json';
-            const branch = githubConfig.branch || 'main';
-            const url = `https://api.github.com/repos/${encodeURIComponent(githubConfig.owner)}/${encodeURIComponent(githubConfig.repo)}/contents/${path}?ref=${encodeURIComponent(branch)}`;
+            const activeSource = (githubConfig && githubConfig.owner && githubConfig.repo)
+                ? githubConfig
+                : (PUBLIC_GITHUB_SOURCE.owner && PUBLIC_GITHUB_SOURCE.repo ? PUBLIC_GITHUB_SOURCE : null);
+
+            if (!activeSource) return false;
+            const path = activeSource.path || 'projects.json';
+            const branch = activeSource.branch || 'main';
+            const hasToken = Boolean(activeSource.token);
+
+            // Use GitHub Contents API when authenticated, or raw.githubusercontent.com for unauthenticated Guest reads
+            const url = hasToken
+                ? `https://api.github.com/repos/${encodeURIComponent(activeSource.owner)}/${encodeURIComponent(activeSource.repo)}/contents/${path}?ref=${encodeURIComponent(branch)}&_=${Date.now()}`
+                : `https://raw.githubusercontent.com/${encodeURIComponent(activeSource.owner)}/${encodeURIComponent(activeSource.repo)}/${encodeURIComponent(branch)}/${path}?_=${Date.now()}`;
+
+            const headers = hasToken
+                ? {
+                    'Authorization': `Bearer ${activeSource.token}`,
+                    'Accept': 'application/vnd.github+json'
+                }
+                : { 'Accept': 'application/json' };
+
             try {
                 const res = await fetch(url, {
                     cache: 'no-store',
-                    headers: {
-                        'Authorization': `Bearer ${githubConfig.token}`,
-                        'Accept': 'application/vnd.github+json'
-                    }
+                    headers
                 });
                 if (!res.ok) {
                     if (notify) showGithubFeedback(`GitHub pull failed (${res.status}). Check repo, branch, or token.`, true);
                     return false;
                 }
-                const data = await res.json();
-                githubFileSha = data.sha;
-                const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
-                const parsed = JSON.parse(decoded);
+
+                let parsed = null;
+                if (hasToken) {
+                    const data = await res.json();
+                    githubFileSha = data.sha;
+                    const decoded = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+                    parsed = JSON.parse(decoded);
+                } else {
+                    parsed = await res.json();
+                }
+
                 if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
                     projectsStore = parsed;
                     localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
@@ -1283,14 +1316,23 @@
                 }
             }
 
-            if (githubConfig && githubConfig.token) {
-                await pullProjectsFromGithub(false);
+            // Pull latest projects.json for both authenticated Admins and unauthenticated Guest visitors
+            if ((githubConfig && githubConfig.owner && githubConfig.repo) || (PUBLIC_GITHUB_SOURCE.owner && PUBLIC_GITHUB_SOURCE.repo)) {
+                const pulled = await pullProjectsFromGithub(false);
+                if (pulled) {
+                    const refreshedProjects = localStorage.getItem('project_horizon_all_projects');
+                    if (refreshedProjects) {
+                        try {
+                            projectsStore = JSON.parse(refreshedProjects);
+                        } catch (e) {}
+                    }
+                }
             }
 
             if (Object.keys(projectsStore).length === 0) {
                 projectsStore['default-project'] = {
                     id: 'default-project',
-                    name: 'Project Horizon Schedule',
+                    name: 'Project Schedule Management',
                     headerSettings: { ...SAMPLE_HEADER },
                     address: '100 Main Street, Greenville, SC 29601',
                     startDate: formatDateOffset(-10),
