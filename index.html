@@ -460,16 +460,24 @@
     <div id="auth-modal" class="fixed inset-0 z-[9999] flex items-center justify-center bg-navy-950/80 backdrop-blur-md hidden" onclick="if(event.target === this) closeAuthModal()">
         <div class="bg-white border border-slate-300 rounded-xl w-full max-w-sm p-6 shadow-2xl relative z-[10000]" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center pb-3 border-b border-slate-200">
-                <h3 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+                <h3 id="auth-modal-title" class="text-base font-bold text-slate-900 flex items-center space-x-2">
                     <i class="fa-solid fa-shield-halved text-red-600"></i>
-                    <span>Admin Authentication</span>
+                    <span>Admin Sign In</span>
                 </h3>
                 <button type="button" onclick="closeAuthModal()" class="text-slate-400 hover:text-slate-700 p-1">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
-            <form onsubmit="handleAuthSubmit(event)" class="mt-4 space-y-4">
+
+            <!-- Mode Switcher Tabs -->
+            <div class="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-lg mt-4 border border-slate-200 text-xs font-semibold">
+                <button type="button" id="auth-tab-signin" onclick="switchAuthMode('signin')" class="py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition-all">Sign In</button>
+                <button type="button" id="auth-tab-register" onclick="switchAuthMode('register')" class="py-1.5 rounded-md text-slate-500 hover:text-slate-800 transition-all">Create Account</button>
+            </div>
+
+            <form onsubmit="handleAuthSubmit(event)" class="mt-4 space-y-3.5">
                 <div id="auth-error" class="hidden bg-red-50 text-red-600 text-xs p-2.5 rounded-lg border border-red-200 font-medium"></div>
+                <div id="auth-success" class="hidden bg-emerald-50 text-emerald-700 text-xs p-2.5 rounded-lg border border-emerald-200 font-medium"></div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Username</label>
                     <input type="text" id="auth-username" required placeholder="Enter username" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
@@ -478,9 +486,13 @@
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Password</label>
                     <input type="password" id="auth-password" required placeholder="••••••••" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm focus:outline-none focus:border-red-500">
                 </div>
+                <div id="auth-invite-group" class="hidden">
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Team Invite Code <span class="text-red-500">*</span></label>
+                    <input type="text" id="auth-invite-code" placeholder="Enter team invite code" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-sm font-mono uppercase focus:outline-none focus:border-red-500">
+                </div>
                 <div class="flex justify-end space-x-2 pt-3 border-t border-slate-200">
                     <button type="button" onclick="closeAuthModal()" class="px-4 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium">Cancel</button>
-                    <button type="submit" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Sign In</button>
+                    <button type="submit" id="auth-submit-btn" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-medium shadow-md">Sign In</button>
                 </div>
             </form>
         </div>
@@ -854,9 +866,14 @@
         };
 
         const DAY_WIDTH = 40;
+        const MASTER_ADMIN_USERNAME = 'admin';
+        const TEAM_INVITE_CODE = 'CGDPBK2027';
 
         // Global Interactive State Variables
-        let currentUserRole = 'guest';
+        let currentUserRole = 'guest'; // 'guest' | 'admin'
+        let currentAdminUsername = null; // null when guest, 'admin' for master admin, or custom username
+        let authModalMode = 'signin'; // 'signin' | 'register'
+        let adminUsersStore = {}; // Stored in projectsStore._users as { [username]: { username, passwordHash, createdAt } }
         let activeDragMode = null; // 'move', 'resize-left', 'resize-right', 'connect-dependency'
         let draggedTaskId = null;
         let dragStartX = 0;
@@ -865,6 +882,41 @@
         let timelineMinDate = null;
         let draggedRowTaskId = null;
         let calendarCurrentDate = new Date();
+
+        function isMasterAdmin() {
+            return currentUserRole === 'admin' && currentAdminUsername === MASTER_ADMIN_USERNAME;
+        }
+
+        function isAnyAdmin() {
+            return currentUserRole === 'admin' && Boolean(currentAdminUsername);
+        }
+
+        function getProjectOwner(proj) {
+            if (!proj) return MASTER_ADMIN_USERNAME;
+            return proj.ownerUsername || MASTER_ADMIN_USERNAME;
+        }
+
+        function canEditProject(proj) {
+            if (!isAnyAdmin()) return false;
+            if (isMasterAdmin()) return true;
+            return getProjectOwner(proj).toLowerCase() === currentAdminUsername.toLowerCase();
+        }
+
+        function canEditActiveProject() {
+            return canEditProject(projectsStore[activeProjectId]);
+        }
+
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(`horizon_salt_${password}`);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function getOnlyProjectsList() {
+            return Object.values(projectsStore).filter(entry => entry && typeof entry === 'object' && entry.id && entry.id !== '_users');
+        }
 
         // Global Mouse Interaction Handlers for Timeline Dragging & Dependency Drawing
         window.handleGlobalMouseMove = function(e) {
@@ -1262,10 +1314,15 @@
                 }
 
                 if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                    if (parsed._users && typeof parsed._users === 'object') {
+                        adminUsersStore = { ...adminUsersStore, ...parsed._users };
+                    }
                     projectsStore = parsed;
+                    projectsStore._users = adminUsersStore;
                     localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
-                    if (!projectsStore[activeProjectId]) {
-                        activeProjectId = Object.keys(projectsStore)[0];
+                    const validProjIds = Object.keys(projectsStore).filter(k => k !== '_users');
+                    if (!projectsStore[activeProjectId] || activeProjectId === '_users') {
+                        activeProjectId = validProjIds[0];
                     }
                     loadActiveProjectData();
                     renderHeader();
@@ -1403,6 +1460,10 @@
                 }
             }
 
+            if (projectsStore._users && typeof projectsStore._users === 'object') {
+                adminUsersStore = projectsStore._users;
+            }
+
             // Pull latest projects.json for both authenticated Admins and unauthenticated Guest visitors
             if (getActiveWriteGithubConfig() || (PUBLIC_GITHUB_SOURCE.owner && PUBLIC_GITHUB_SOURCE.repo)) {
                 const pulled = await pullProjectsFromGithub(false);
@@ -1411,15 +1472,25 @@
                     if (refreshedProjects) {
                         try {
                             projectsStore = JSON.parse(refreshedProjects);
+                            if (projectsStore._users) adminUsersStore = projectsStore._users;
                         } catch (e) {}
                     }
                 }
             }
 
-            if (Object.keys(projectsStore).length === 0) {
+            // Assign legacy projects without an ownerUsername to Master Admin ('admin')
+            Object.keys(projectsStore).forEach(key => {
+                if (key !== '_users' && projectsStore[key] && !projectsStore[key].ownerUsername) {
+                    projectsStore[key].ownerUsername = MASTER_ADMIN_USERNAME;
+                }
+            });
+
+            const existingProjectKeys = Object.keys(projectsStore).filter(k => k !== '_users');
+            if (existingProjectKeys.length === 0) {
                 projectsStore['default-project'] = {
                     id: 'default-project',
                     name: 'Project Schedule Management',
+                    ownerUsername: MASTER_ADMIN_USERNAME,
                     headerSettings: { ...SAMPLE_HEADER },
                     address: '100 Main Street, Greenville, SC 29601',
                     startDate: formatDateOffset(-10),
@@ -1432,7 +1503,9 @@
                 };
             }
 
-            activeProjectId = savedActiveId && projectsStore[savedActiveId] ? savedActiveId : Object.keys(projectsStore)[0];
+            projectsStore._users = adminUsersStore;
+            const validKeys = Object.keys(projectsStore).filter(k => k !== '_users');
+            activeProjectId = (savedActiveId && savedActiveId !== '_users' && projectsStore[savedActiveId]) ? savedActiveId : validKeys[0];
             loadActiveProjectData();
 
             renderHeader();
@@ -1445,7 +1518,7 @@
         }
 
         function saveTasks() {
-            if (!projectsStore[activeProjectId]) return;
+            if (!projectsStore[activeProjectId] || activeProjectId === '_users') return;
 
             const now = new Date();
             lastSavedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1459,6 +1532,7 @@
                 ...projectsStore[activeProjectId],
                 id: activeProjectId,
                 name: safeHeaderSettings.title,
+                ownerUsername: getProjectOwner(projectsStore[activeProjectId]),
                 headerSettings: safeHeaderSettings,
                 address: projectAddress || '',
                 startDate: projectStartDate || '',
@@ -1469,6 +1543,7 @@
                 tasks: tasks || [],
                 lastSaved: lastSavedTime
             };
+            projectsStore._users = adminUsersStore;
 
             try {
                 localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
@@ -1513,9 +1588,12 @@
                 if (mainArea) mainArea.classList.remove('hidden');
                 if (homeBtn) homeBtn.classList.remove('hidden');
                 if (infoBtn) infoBtn.classList.remove('hidden');
-                if (currentUserRole === 'admin') {
+                if (canEditActiveProject()) {
                     if (addTaskBtn) addTaskBtn.classList.remove('hidden');
                     if (delAllBtn) delAllBtn.classList.remove('hidden');
+                } else {
+                    if (addTaskBtn) addTaskBtn.classList.add('hidden');
+                    if (delAllBtn) delAllBtn.classList.add('hidden');
                 }
                 switchTab(activeTab);
             }
@@ -1546,33 +1624,39 @@
         }
 
         function switchActiveProject(projectId) {
-            if (!projectsStore[projectId]) return;
+            if (!projectsStore[projectId] || projectId === '_users') return;
             activeProjectId = projectId;
             selectedTaskIds = [];
             localStorage.setItem('project_horizon_active_id', activeProjectId);
             loadActiveProjectData();
             renderHeader();
             renderCategoryFilterList();
+            updateRoleUI();
             updateSaveIndicatorUI();
         }
 
         function deleteProject(projectId, e) {
             if (e) e.stopPropagation();
-            if (currentUserRole !== 'admin') return;
-            if (Object.keys(projectsStore).length <= 1) return;
+            const proj = projectsStore[projectId];
+            if (!proj || !canEditProject(proj)) return;
+            const remainingProjects = getOnlyProjectsList();
+            if (remainingProjects.length <= 1) return;
 
             delete projectsStore[projectId];
             if (activeProjectId === projectId) {
-                activeProjectId = Object.keys(projectsStore)[0];
+                const nextProjects = getOnlyProjectsList();
+                activeProjectId = nextProjects[0].id;
                 loadActiveProjectData();
                 renderHeader();
             }
+            projectsStore._users = adminUsersStore;
             localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
+            scheduleGithubAutoPush();
             renderProjectsHome();
         }
 
         function openNewProjectModal() {
-            if (currentUserRole !== 'admin') return;
+            if (!isAnyAdmin()) return;
             const modal = document.getElementById('new-project-modal');
             if (!modal) return;
             document.getElementById('new-project-name').value = '';
@@ -1625,7 +1709,7 @@
         }
 
         function addTeamMemberToNewProjectModal() {
-            if (currentUserRole !== 'admin') return;
+            if (!isAnyAdmin()) return;
             const nameInp = document.getElementById('create-member-name');
             const emailInp = document.getElementById('create-member-email');
             const roleInp = document.getElementById('create-member-role');
@@ -1649,14 +1733,14 @@
         }
 
         function removeTeamMemberFromNewProjectModal(index) {
-            if (currentUserRole !== 'admin') return;
+            if (!isAnyAdmin()) return;
             newProjectTempTeamMembers.splice(index, 1);
             renderNewProjectModalTeamList();
         }
 
         function handleCreateProjectSubmit(e) {
             e.preventDefault();
-            if (currentUserRole !== 'admin') return;
+            if (!isAnyAdmin()) return;
 
             const name = document.getElementById('new-project-name').value.trim();
             const phase = document.getElementById('new-project-phase').value || 'Pre-Design / Programming';
@@ -1679,6 +1763,7 @@
             projectsStore[newId] = {
                 id: newId,
                 name: name,
+                ownerUsername: currentAdminUsername,
                 headerSettings: { title: name, subtitle: subtitle, logo: 'fa-list-check' },
                 address: address,
                 startDate: startDate,
@@ -1700,8 +1785,9 @@
             const grid = document.getElementById('projects-cards-grid');
             if (!grid) return;
 
+            const allProjects = getOnlyProjectsList();
             let html = '';
-            Object.values(projectsStore).forEach(proj => {
+            allProjects.forEach(proj => {
                 const projTasks = proj.tasks || [];
                 const completed = projTasks.filter(t => t.completed).length;
                 const total = projTasks.length;
@@ -1709,6 +1795,8 @@
                 const isActive = proj.id === activeProjectId;
                 const phaseLabel = proj.phase || 'Active Phase';
                 const teamCount = (proj.teamMembers || []).length;
+                const owner = getProjectOwner(proj);
+                const editable = canEditProject(proj);
 
                 html += `
                     <div class="bg-white border ${isActive ? 'border-red-500 ring-2 ring-red-500/20 shadow-md' : 'border-slate-200'} rounded-2xl p-5 flex flex-col justify-between hover:shadow-lg transition-all group">
@@ -1723,13 +1811,17 @@
                                         <p class="text-[11px] text-slate-400 truncate">${proj.headerSettings?.subtitle || 'Task Schedule'}</p>
                                     </div>
                                 </div>
-                                ${isActive ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 shrink-0">Active</span>` : ''}
+                                <div class="flex items-center space-x-1 shrink-0">
+                                    ${isAnyAdmin() && !editable ? `<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="Owned by ${owner}"><i class="fa-solid fa-lock text-[9px] mr-1"></i>Locked</span>` : ''}
+                                    ${isActive ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Active</span>` : ''}
+                                </div>
                             </div>
 
                             <div class="flex flex-wrap gap-1.5 mt-2">
                                 <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">${phaseLabel}</span>
                                 ${proj.budget ? `<span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">${proj.budget}</span>` : ''}
                                 <span class="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200"><i class="fa-solid fa-users text-[9px] mr-1"></i>${teamCount}</span>
+                                <span class="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200" title="Project Owner"><i class="fa-solid fa-user-shield text-[9px] mr-1 text-slate-500"></i>${owner === MASTER_ADMIN_USERNAME ? 'Master Admin' : owner}</span>
                             </div>
 
                             ${proj.address ? `<p class="text-[11px] text-slate-500 mt-2 truncate"><i class="fa-solid fa-location-dot text-slate-400 mr-1"></i>${proj.address}</p>` : ''}
@@ -1752,7 +1844,7 @@
                         <div class="flex items-center justify-between pt-4 border-t border-slate-100 mt-4 gap-2">
                             <span class="text-[10px] text-slate-400 truncate">Saved ${proj.lastSaved || 'recently'}</span>
                             <div class="flex items-center space-x-1.5 shrink-0">
-                                ${currentUserRole === 'admin' && Object.keys(projectsStore).length > 1 ? `
+                                ${editable && allProjects.length > 1 ? `
                                 <button onclick="deleteProject('${proj.id}', event)" class="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100" title="Delete Project">
                                     <i class="fa-solid fa-trash-can text-xs"></i>
                                 </button>
@@ -1774,13 +1866,13 @@
 
             const createBtn = document.getElementById('home-create-project-btn');
             if (createBtn) {
-                if (currentUserRole === 'admin') createBtn.classList.remove('hidden');
+                if (isAnyAdmin()) createBtn.classList.remove('hidden');
                 else createBtn.classList.add('hidden');
             }
 
             const footerSyncBox = document.getElementById('home-footer-admin-sync');
             if (footerSyncBox) {
-                if (currentUserRole === 'admin') {
+                if (isMasterAdmin()) {
                     footerSyncBox.classList.remove('hidden');
                     footerSyncBox.classList.add('flex');
                 } else {
@@ -1809,25 +1901,26 @@
 
             modalTempTeamMembers = JSON.parse(JSON.stringify(proj.teamMembers || [...DEFAULT_TEAM_MEMBERS]));
 
-            const isAdmin = currentUserRole === 'admin';
+            const canEdit = canEditProject(proj);
+            const owner = getProjectOwner(proj);
             const inputs = modal.querySelectorAll('input:not([type="hidden"]), select');
-            inputs.forEach(inp => inp.disabled = !isAdmin);
+            inputs.forEach(inp => inp.disabled = !canEdit);
 
             const addMemberBar = document.getElementById('proj-info-add-member-bar');
             const saveBtn = document.getElementById('proj-info-save-btn');
             const hint = document.getElementById('proj-info-subtitle-hint');
 
-            if (isAdmin) {
+            if (canEdit) {
                 if (addMemberBar) addMemberBar.classList.remove('hidden');
                 if (saveBtn) saveBtn.classList.remove('hidden');
-                if (hint) hint.textContent = 'Manage project location, schedule dates, phase, budget & team assignments';
+                if (hint) hint.textContent = `Owned by ${owner === MASTER_ADMIN_USERNAME ? 'Master Admin' : owner} • Edit location, dates, phase, budget & team`;
             } else {
                 if (addMemberBar) addMemberBar.classList.add('hidden');
                 if (saveBtn) saveBtn.classList.add('hidden');
-                if (hint) hint.textContent = 'Viewing project details and assigned team members (Read-Only)';
+                if (hint) hint.textContent = `Protected by ${owner === MASTER_ADMIN_USERNAME ? 'Master Admin' : owner} (Read-Only)`;
             }
 
-            renderModalTeamList();
+            renderModalTeamList(canEdit);
             modal.classList.remove('hidden');
         }
 
@@ -1836,11 +1929,10 @@
             if (modal) modal.classList.add('hidden');
         }
 
-        function renderModalTeamList() {
+        function renderModalTeamList(canEdit = canEditActiveProject()) {
             const container = document.getElementById('proj-info-team-list');
             if (!container) return;
 
-            const isAdmin = currentUserRole === 'admin';
             if (modalTempTeamMembers.length === 0) {
                 container.innerHTML = `<div class="p-3 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-300">No team members assigned to this project yet.</div>`;
                 return;
@@ -1859,7 +1951,7 @@
                             ${member.email ? `<span class="text-slate-400 mx-1">•</span><span class="text-sky-700 font-mono text-[11px]">${member.email}</span>` : ''}
                         </div>
                     </div>
-                    ${isAdmin ? `
+                    ${canEdit ? `
                     <button type="button" onclick="removeTeamMemberFromModal(${idx})" class="text-slate-400 hover:text-rose-600 p-1 rounded transition-colors shrink-0" title="Remove Team Member">
                         <i class="fa-solid fa-trash-can text-xs"></i>
                     </button>
@@ -1869,7 +1961,8 @@
         }
 
         function addTeamMemberToModal() {
-            if (currentUserRole !== 'admin') return;
+            const projId = document.getElementById('proj-info-id')?.value;
+            if (!canEditProject(projectsStore[projId])) return;
             const nameInp = document.getElementById('new-member-name');
             const emailInp = document.getElementById('new-member-email');
             const roleInp = document.getElementById('new-member-role');
@@ -1889,22 +1982,21 @@
             nameInp.value = '';
             if (emailInp) emailInp.value = '';
             roleInp.value = '';
-            renderModalTeamList();
+            renderModalTeamList(true);
         }
 
         function removeTeamMemberFromModal(index) {
-            if (currentUserRole !== 'admin') return;
+            const projId = document.getElementById('proj-info-id')?.value;
+            if (!canEditProject(projectsStore[projId])) return;
             modalTempTeamMembers.splice(index, 1);
-            renderModalTeamList();
+            renderModalTeamList(true);
         }
 
         function handleProjectInfoSubmit(e) {
             e.preventDefault();
-            if (currentUserRole !== 'admin') return;
-
             const projId = document.getElementById('proj-info-id').value;
             const proj = projectsStore[projId];
-            if (!proj) return;
+            if (!proj || !canEditProject(proj)) return;
 
             const updatedName = document.getElementById('proj-info-name').value.trim();
             const updatedAddress = document.getElementById('proj-info-address').value.trim();
@@ -2115,7 +2207,7 @@
                 const combined = `${t.taskNumber || ''} ${t.description || ''}`;
                 if (combined.length > maxLen) maxLen = combined.length;
             });
-            const adminExtra = currentUserRole === 'admin' ? 48 : 0;
+            const adminExtra = canEditActiveProject() ? 48 : 0;
             return Math.min(Math.max(260, maxLen * 7.5 + 85 + adminExtra), 560);
         }
 
@@ -2125,10 +2217,13 @@
             const controls = document.getElementById('view-controls');
             if (!container) return;
 
+            const canEdit = canEditActiveProject();
+            const owner = getProjectOwner(projectsStore[activeProjectId]);
+
             if (controls) {
-                controls.innerHTML = `
-                    <span class="text-xs text-slate-500 hidden sm:inline">${currentUserRole === 'admin' ? 'Drag bars to move, edges to resize, or + to link tasks' : 'Click any task to view details'}</span>
-                `;
+                controls.innerHTML = canEdit
+                    ? `<span class="text-xs text-slate-500 hidden sm:inline">Drag bars to move, edges to resize, or + to link tasks</span>`
+                    : `<span class="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg font-medium hidden sm:inline-flex items-center space-x-1"><i class="fa-solid fa-lock text-[10px]"></i><span>Protected by ${owner === MASTER_ADMIN_USERNAME ? 'Master Admin' : owner} (Read-Only)</span></span>`;
             }
 
             const filtered = getFilteredTasks();
@@ -2174,7 +2269,7 @@
 
             const totalGridWidth = days.length * DAY_WIDTH;
             const todayStr = new Date().toISOString().split('T')[0];
-            const isAdmin = currentUserRole === 'admin';
+            const isAdmin = canEdit;
             const rowHeight = 46;
 
             // Header HTML
@@ -2355,7 +2450,7 @@
 
                     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                     group.setAttribute('class', 'dependency-connector-group pointer-events-auto');
-                    if (currentUserRole === 'admin') {
+                    if (canEditActiveProject()) {
                         group.setAttribute('title', `Click to remove dependency (${sourceTask.taskNumber} → ${task.taskNumber})`);
                         group.onclick = (e) => {
                             e.stopPropagation();
@@ -2386,7 +2481,7 @@
         }
 
         function removeDependencyLink(sourceId, targetId) {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             const targetTask = tasks.find(t => t.id === targetId);
             if (!targetTask) return;
             targetTask.dependencies = (targetTask.dependencies || []).filter(id => id !== sourceId);
@@ -2506,7 +2601,7 @@
             const thActions = document.getElementById('th-actions');
             if (!tbody) return;
 
-            const isAdmin = currentUserRole === 'admin';
+            const isAdmin = canEditActiveProject();
             if (controls) {
                 controls.innerHTML = `<span class="text-xs text-slate-500">${getFilteredTasks().length} tasks shown</span>`;
             }
@@ -2618,7 +2713,7 @@
             const countEl = document.getElementById('bulk-count');
             if (!toolbar || !countEl) return;
 
-            if (currentUserRole === 'admin' && selectedTaskIds.length > 0) {
+            if (canEditActiveProject() && selectedTaskIds.length > 0) {
                 countEl.textContent = selectedTaskIds.length;
                 toolbar.classList.remove('hidden');
             } else {
@@ -2627,7 +2722,7 @@
         }
 
         function applyBulkRecategorize() {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             const newCat = document.getElementById('bulk-category-select')?.value;
             if (!newCat) return;
 
@@ -2644,7 +2739,7 @@
         }
 
         function applyBulkDelete() {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             const removeSet = new Set(selectedTaskIds);
             tasks = tasks.filter(t => !removeSet.has(t.id));
             tasks.forEach(t => {
@@ -2657,13 +2752,13 @@
 
         // Vertical Task Reordering Handlers
         function startTaskRowDrag(e, id) {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             draggedRowTaskId = id;
             if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
         }
 
         function handleTaskRowDragOver(e, targetId) {
-            if (currentUserRole !== 'admin' || !draggedRowTaskId || draggedRowTaskId === targetId) return;
+            if (!canEditActiveProject() || !draggedRowTaskId || draggedRowTaskId === targetId) return;
             e.preventDefault();
             e.currentTarget.classList.add('drag-reorder-target');
         }
@@ -2675,7 +2770,7 @@
         function handleTaskRowDrop(e, targetId) {
             e.preventDefault();
             e.currentTarget.classList.remove('drag-reorder-target');
-            if (currentUserRole !== 'admin' || !draggedRowTaskId || draggedRowTaskId === targetId) return;
+            if (!canEditActiveProject() || !draggedRowTaskId || draggedRowTaskId === targetId) return;
 
             const fromIdx = tasks.findIndex(t => t.id === draggedRowTaskId);
             const toIdx = tasks.findIndex(t => t.id === targetId);
@@ -2698,7 +2793,7 @@
 
         function promptDeleteTask(id, e) {
             if (e) e.stopPropagation();
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             tasks = tasks.filter(t => t.id !== id);
             tasks.forEach(t => {
                 t.dependencies = (t.dependencies || []).filter(depId => depId !== id);
@@ -2708,7 +2803,7 @@
         }
 
         function promptDeleteAllTasks() {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             document.getElementById('delete-all-modal')?.classList.remove('hidden');
         }
 
@@ -2717,7 +2812,7 @@
         }
 
         function confirmDeleteAllTasks() {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             tasks = [];
             selectedTaskIds = [];
             closeDeleteAllModal();
@@ -2726,7 +2821,7 @@
         }
 
         function handleTaskNameClick(id) {
-            if (currentUserRole === 'admin') {
+            if (canEditActiveProject()) {
                 openModal(id);
             } else {
                 openGuestViewModal(id);
@@ -2833,7 +2928,7 @@
 
         // ADD / EDIT TASK MODAL
         function openModal(taskId = null) {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
 
             const modal = document.getElementById('task-modal');
             const titleEl = document.getElementById('modal-title');
@@ -2950,7 +3045,7 @@
 
         function handleFormSubmit(e) {
             e.preventDefault();
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
 
             const taskId = parseInt(document.getElementById('task-id').value);
             const description = document.getElementById('form-description').value.trim();
@@ -3059,7 +3154,7 @@
         }
 
         function duplicateTask(id) {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             const source = tasks.find(t => t.id === id);
             if (!source) return;
 
@@ -3090,7 +3185,7 @@
         }
 
         function startTimelineDrag(e, taskId, mode) {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             e.stopPropagation();
             activeDragMode = mode;
             draggedTaskId = taskId;
@@ -3104,7 +3199,7 @@
         }
 
         function startDependencyConnect(e, sourceTaskId) {
-            if (currentUserRole !== 'admin') return;
+            if (!canEditActiveProject()) return;
             e.stopPropagation();
             activeDragMode = 'connect-dependency';
             draggedTaskId = sourceTaskId;
@@ -3167,9 +3262,11 @@
             const addBtn = document.getElementById('header-add-task-btn');
             const delAllBtn = document.getElementById('header-delete-all-btn');
 
-            if (currentUserRole === 'admin') {
-                if (badge) badge.innerHTML = `<i class="fa-solid fa-shield-halved mr-1 text-[10px] text-red-400"></i>Admin`;
-                if (homeBadge) homeBadge.innerHTML = `<i class="fa-solid fa-shield-halved mr-1 text-[10px] text-red-400"></i>Admin`;
+            if (isAnyAdmin()) {
+                const displayLabel = isMasterAdmin() ? 'Master Admin' : currentAdminUsername;
+                const badgeHtml = `<i class="fa-solid ${isMasterAdmin() ? 'fa-crown text-amber-400' : 'fa-shield-halved text-red-400'} mr-1 text-[10px]"></i>${displayLabel}`;
+                if (badge) badge.innerHTML = badgeHtml;
+                if (homeBadge) homeBadge.innerHTML = badgeHtml;
 
                 if (authBtn) {
                     authBtn.textContent = 'Sign Out';
@@ -3180,8 +3277,13 @@
                     homeAuthBtn.setAttribute('onclick', 'signOutAdmin(event)');
                 }
 
-                if (addBtn && activeView !== 'home') addBtn.classList.remove('hidden');
-                if (delAllBtn && activeView !== 'home') delAllBtn.classList.remove('hidden');
+                if (canEditActiveProject() && activeView !== 'home') {
+                    if (addBtn) addBtn.classList.remove('hidden');
+                    if (delAllBtn) delAllBtn.classList.remove('hidden');
+                } else {
+                    if (addBtn) addBtn.classList.add('hidden');
+                    if (delAllBtn) delAllBtn.classList.add('hidden');
+                }
             } else {
                 if (badge) badge.innerHTML = `<i class="fa-solid fa-user mr-1 text-[10px]"></i>Guest`;
                 if (homeBadge) homeBadge.innerHTML = `<i class="fa-solid fa-user mr-1 text-[10px]"></i>Guest`;
@@ -3202,6 +3304,37 @@
             renderApp();
         }
 
+        function switchAuthMode(mode) {
+            authModalMode = mode;
+            const titleEl = document.getElementById('auth-modal-title');
+            const signinTab = document.getElementById('auth-tab-signin');
+            const registerTab = document.getElementById('auth-tab-register');
+            const inviteGroup = document.getElementById('auth-invite-group');
+            const inviteInput = document.getElementById('auth-invite-code');
+            const submitBtn = document.getElementById('auth-submit-btn');
+            const errEl = document.getElementById('auth-error');
+            const okEl = document.getElementById('auth-success');
+
+            if (errEl) errEl.classList.add('hidden');
+            if (okEl) okEl.classList.add('hidden');
+
+            if (mode === 'register') {
+                if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-user-plus text-red-600"></i><span>Create Admin Account</span>`;
+                if (signinTab) signinTab.className = 'py-1.5 rounded-md text-slate-500 hover:text-slate-800 transition-all';
+                if (registerTab) registerTab.className = 'py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition-all';
+                if (inviteGroup) inviteGroup.classList.remove('hidden');
+                if (inviteInput) inviteInput.required = true;
+                if (submitBtn) submitBtn.textContent = 'Create Account';
+            } else {
+                if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-shield-halved text-red-600"></i><span>Admin Sign In</span>`;
+                if (signinTab) signinTab.className = 'py-1.5 rounded-md bg-white text-slate-900 shadow-sm transition-all';
+                if (registerTab) registerTab.className = 'py-1.5 rounded-md text-slate-500 hover:text-slate-800 transition-all';
+                if (inviteGroup) inviteGroup.classList.add('hidden');
+                if (inviteInput) inviteInput.required = false;
+                if (submitBtn) submitBtn.textContent = 'Sign In';
+            }
+        }
+
         function openAuthModal(e) {
             if (e) {
                 if (e.stopPropagation) e.stopPropagation();
@@ -3209,33 +3342,98 @@
             }
             const modal = document.getElementById('auth-modal');
             const err = document.getElementById('auth-error');
+            const ok = document.getElementById('auth-success');
             const userInp = document.getElementById('auth-username');
             const passInp = document.getElementById('auth-password');
+            const inviteInp = document.getElementById('auth-invite-code');
             if (userInp) userInp.value = '';
             if (passInp) passInp.value = '';
+            if (inviteInp) inviteInp.value = '';
             if (err) err.classList.add('hidden');
+            if (ok) ok.classList.add('hidden');
+            switchAuthMode('signin');
             if (modal) {
                 modal.classList.remove('hidden');
                 modal.style.display = 'flex';
             }
         }
 
-        function handleAuthSubmit(e) {
+        async function handleAuthSubmit(e) {
             e.preventDefault();
             const usernameInput = document.getElementById('auth-username').value.trim();
             const passwordInput = document.getElementById('auth-password').value;
+            const inviteInput = (document.getElementById('auth-invite-code')?.value || '').trim().toUpperCase();
             const errEl = document.getElementById('auth-error');
 
-            if (usernameInput === 'admin' && passwordInput === 'admin124') {
-                currentUserRole = 'admin';
-                closeAuthModal();
-                updateRoleUI();
-            } else {
+            const showAuthError = (msg) => {
                 if (errEl) {
-                    errEl.textContent = 'Invalid username or password. Please try again.';
+                    errEl.textContent = msg;
                     errEl.classList.remove('hidden');
                 }
+            };
+
+            if (authModalMode === 'register') {
+                if (inviteInput !== TEAM_INVITE_CODE) {
+                    showAuthError('Invalid Team Invite Code.');
+                    return;
+                }
+                if (usernameInput.length < 3) {
+                    showAuthError('Username must be at least 3 characters.');
+                    return;
+                }
+                if (!/^[a-zA-Z0-9._-]+$/.test(usernameInput)) {
+                    showAuthError('Username can only contain letters, numbers, dots, underscores, or hyphens.');
+                    return;
+                }
+                if (passwordInput.length < 6) {
+                    showAuthError('Password must be at least 6 characters.');
+                    return;
+                }
+                const normalizedKey = usernameInput.toLowerCase();
+                if (normalizedKey === MASTER_ADMIN_USERNAME || normalizedKey === '_users' || adminUsersStore[normalizedKey]) {
+                    showAuthError('That username is already taken. Please choose another.');
+                    return;
+                }
+
+                const passwordHash = await hashPassword(passwordInput);
+                adminUsersStore[normalizedKey] = {
+                    username: usernameInput,
+                    passwordHash,
+                    createdAt: new Date().toISOString()
+                };
+                projectsStore._users = adminUsersStore;
+                localStorage.setItem('project_horizon_all_projects', JSON.stringify(projectsStore));
+                scheduleGithubAutoPush();
+
+                currentUserRole = 'admin';
+                currentAdminUsername = usernameInput;
+                closeAuthModal();
+                updateRoleUI();
+                return;
             }
+
+            // Sign In Mode
+            if (usernameInput.toLowerCase() === MASTER_ADMIN_USERNAME && passwordInput === 'admin124') {
+                currentUserRole = 'admin';
+                currentAdminUsername = MASTER_ADMIN_USERNAME;
+                closeAuthModal();
+                updateRoleUI();
+                return;
+            }
+
+            const existingUser = adminUsersStore[usernameInput.toLowerCase()];
+            if (existingUser) {
+                const candidateHash = await hashPassword(passwordInput);
+                if (candidateHash === existingUser.passwordHash) {
+                    currentUserRole = 'admin';
+                    currentAdminUsername = existingUser.username;
+                    closeAuthModal();
+                    updateRoleUI();
+                    return;
+                }
+            }
+
+            showAuthError('Invalid username or password. Please try again.');
         }
 
         function closeAuthModal() {
@@ -3249,6 +3447,7 @@
         function signOutAdmin(e) {
             if (e && e.stopPropagation) e.stopPropagation();
             currentUserRole = 'guest';
+            currentAdminUsername = null;
             updateRoleUI();
         }
 
