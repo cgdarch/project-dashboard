@@ -616,7 +616,17 @@
                 </div>
                 <div>
                     <label class="block font-semibold text-slate-600 uppercase mb-1">Personal Access Token (PAT) <span class="text-red-500">*</span></label>
-                    <input type="password" id="gh-token" required placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-red-500">
+                    <input type="password" id="gh-token" required placeholder="github_pat_xxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono focus:outline-none focus:border-red-500">
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                        <span class="font-semibold text-slate-700 block">Guest Team Sync Link</span>
+                        <span class="text-[10px] text-slate-500 block">Lets team members check off tasks & sync to projects.json without Admin access.</span>
+                    </div>
+                    <button type="button" onclick="copyTeamSyncShareLink()" class="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-semibold shrink-0 transition-colors flex items-center space-x-1">
+                        <i class="fa-solid fa-link text-[10px]"></i>
+                        <span>Copy Link</span>
+                    </button>
                 </div>
                 <div class="flex items-center justify-between pt-3 border-t border-slate-200 gap-2">
                     <div class="flex items-center space-x-1.5">
@@ -1038,26 +1048,68 @@
         let activeCategoryFilters = ['ALL'];
         let selectedTaskIds = [];
         let githubConfig = null;
+        let guestSyncConfig = null;
         let githubFileSha = null;
         let githubSyncTimeout = null;
 
         // Public read-only GitHub source so Guest users on any device load the live projects.json
         // Update owner & repo here to match your GitHub repository (or configure via Admin Repo Sync)
         const PUBLIC_GITHUB_SOURCE = {
-            owner: 'cgdarch',
-            repo: 'project-dashboard',
+            owner: '', // e.g. 'your-github-username'
+            repo: '',  // e.g. 'your-repo-name'
             branch: 'main',
             path: 'projects.json'
         };
 
+        function absorbUrlHashSyncConfig() {
+            try {
+                const hash = window.location.hash || '';
+                if (hash.startsWith('#sync=')) {
+                    const encoded = decodeURIComponent(hash.slice(6));
+                    const decodedJson = decodeURIComponent(escape(atob(encoded)));
+                    const parsed = JSON.parse(decodedJson);
+                    if (parsed && parsed.owner && parsed.repo && parsed.token) {
+                        localStorage.setItem('project_horizon_guest_sync_cfg', JSON.stringify({
+                            owner: parsed.owner,
+                            repo: parsed.repo,
+                            branch: parsed.branch || 'main',
+                            path: parsed.path || 'projects.json',
+                            token: parsed.token
+                        }));
+                    }
+                    // Strip hash from address bar immediately so token isn't visible in URL bar
+                    history.replaceState(null, '', window.location.pathname + window.location.search);
+                }
+            } catch (e) {
+                console.warn('Invalid sync link hash ignored.');
+            }
+        }
+
         function loadGithubConfig() {
+            absorbUrlHashSyncConfig();
             try {
                 const raw = localStorage.getItem('project_horizon_github_cfg');
                 if (raw) githubConfig = JSON.parse(raw);
             } catch (e) {
                 githubConfig = null;
             }
+            try {
+                const guestRaw = localStorage.getItem('project_horizon_guest_sync_cfg');
+                if (guestRaw) guestSyncConfig = JSON.parse(guestRaw);
+            } catch (e) {
+                guestSyncConfig = null;
+            }
             updateGithubStatusUI();
+        }
+
+        function getActiveWriteGithubConfig() {
+            if (githubConfig && githubConfig.owner && githubConfig.repo && githubConfig.token) {
+                return githubConfig;
+            }
+            if (guestSyncConfig && guestSyncConfig.owner && guestSyncConfig.repo && guestSyncConfig.token) {
+                return guestSyncConfig;
+            }
+            return null;
         }
 
         function updateGithubStatusUI() {
@@ -1067,6 +1119,9 @@
             if (githubConfig && githubConfig.owner && githubConfig.repo && githubConfig.token) {
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
                 label.textContent = `${githubConfig.owner}/${githubConfig.repo}`;
+            } else if (guestSyncConfig && guestSyncConfig.owner && guestSyncConfig.repo && guestSyncConfig.token) {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+                label.textContent = `Team Sync: ${guestSyncConfig.owner}/${guestSyncConfig.repo}`;
             } else if (PUBLIC_GITHUB_SOURCE.owner && PUBLIC_GITHUB_SOURCE.repo) {
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-sky-500';
                 label.textContent = `Read-Only: ${PUBLIC_GITHUB_SOURCE.owner}/${PUBLIC_GITHUB_SOURCE.repo}`;
@@ -1074,6 +1129,34 @@
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
                 label.textContent = 'Local Storage';
             }
+        }
+
+        function copyTeamSyncShareLink() {
+            if (currentUserRole !== 'admin') return;
+            const owner = document.getElementById('gh-owner').value.trim();
+            const repo = document.getElementById('gh-repo').value.trim();
+            const branch = document.getElementById('gh-branch').value.trim() || 'main';
+            const path = document.getElementById('gh-path').value.trim() || 'projects.json';
+            const token = document.getElementById('gh-token').value.trim();
+
+            if (!owner || !repo || !token) {
+                showGithubFeedback('Enter Owner, Repository, and PAT before copying the team link.', true);
+                return;
+            }
+
+            const payload = JSON.stringify({ owner, repo, branch, path, token });
+            const encoded = btoa(unescape(encodeURIComponent(payload)));
+            const baseUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+            const shareUrl = `${baseUrl}#sync=${encodeURIComponent(encoded)}`;
+
+            const tempInput = document.createElement('textarea');
+            tempInput.value = shareUrl;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+
+            showGithubFeedback('Team Sync Link copied! Share this link with your team so they can check off tasks and sync to GitHub.');
         }
 
         function showGithubFeedback(msg, isError = false) {
@@ -1127,15 +1210,18 @@
         function disconnectGithubSync() {
             if (currentUserRole !== 'admin') return;
             githubConfig = null;
+            guestSyncConfig = null;
             githubFileSha = null;
             localStorage.removeItem('project_horizon_github_cfg');
+            localStorage.removeItem('project_horizon_guest_sync_cfg');
             updateGithubStatusUI();
             showGithubFeedback('Disconnected from GitHub repository.');
         }
 
         async function pullProjectsFromGithub(notify = false) {
-            const activeSource = (githubConfig && githubConfig.owner && githubConfig.repo)
-                ? githubConfig
+            const writeCfg = getActiveWriteGithubConfig();
+            const activeSource = writeCfg
+                ? writeCfg
                 : (PUBLIC_GITHUB_SOURCE.owner && PUBLIC_GITHUB_SOURCE.repo ? PUBLIC_GITHUB_SOURCE : null);
 
             if (!activeSource) return false;
@@ -1211,13 +1297,14 @@
         }
 
         async function pushProjectsToGithub(notify = false) {
-            if (!githubConfig || !githubConfig.owner || !githubConfig.repo || !githubConfig.token) return false;
-            const path = githubConfig.path || 'projects.json';
-            const branch = githubConfig.branch || 'main';
-            const url = `https://api.github.com/repos/${encodeURIComponent(githubConfig.owner)}/${encodeURIComponent(githubConfig.repo)}/contents/${path}`;
+            const writeCfg = getActiveWriteGithubConfig();
+            if (!writeCfg) return false;
+            const path = writeCfg.path || 'projects.json';
+            const branch = writeCfg.branch || 'main';
+            const url = `https://api.github.com/repos/${encodeURIComponent(writeCfg.owner)}/${encodeURIComponent(writeCfg.repo)}/contents/${path}`;
             try {
                 // Always fetch the latest uncached SHA so external edits or browser cache never cause a 409 Conflict
-                const latestSha = await fetchLatestGithubFileSha(url, branch, githubConfig.token);
+                const latestSha = await fetchLatestGithubFileSha(url, branch, writeCfg.token);
                 if (latestSha) {
                     githubFileSha = latestSha;
                 }
@@ -1237,7 +1324,7 @@
                 let putRes = await fetch(url, {
                     method: 'PUT',
                     headers: {
-                        'Authorization': `Bearer ${githubConfig.token}`,
+                        'Authorization': `Bearer ${writeCfg.token}`,
                         'Accept': 'application/vnd.github+json',
                         'Content-Type': 'application/json'
                     },
@@ -1246,13 +1333,13 @@
 
                 // Automatic retry once if a concurrent commit caused a 409 Conflict
                 if (putRes.status === 409) {
-                    const refreshedSha = await fetchLatestGithubFileSha(url, branch, githubConfig.token);
+                    const refreshedSha = await fetchLatestGithubFileSha(url, branch, writeCfg.token);
                     if (refreshedSha) {
                         githubFileSha = refreshedSha;
                         putRes = await fetch(url, {
                             method: 'PUT',
                             headers: {
-                                'Authorization': `Bearer ${githubConfig.token}`,
+                                'Authorization': `Bearer ${writeCfg.token}`,
                                 'Accept': 'application/vnd.github+json',
                                 'Content-Type': 'application/json'
                             },
@@ -1271,7 +1358,7 @@
                 if (result.content && result.content.sha) {
                     githubFileSha = result.content.sha;
                 }
-                if (notify) showGithubFeedback(`Synced projects to ${githubConfig.owner}/${githubConfig.repo}/${path}.`);
+                if (notify) showGithubFeedback(`Synced projects to ${writeCfg.owner}/${writeCfg.repo}/${path}.`);
                 return true;
             } catch (err) {
                 if (notify) showGithubFeedback(`Error pushing to GitHub: ${err.message}`, true);
@@ -1280,7 +1367,7 @@
         }
 
         function scheduleGithubAutoPush() {
-            if (!githubConfig || !githubConfig.token) return;
+            if (!getActiveWriteGithubConfig()) return;
             clearTimeout(githubSyncTimeout);
             githubSyncTimeout = setTimeout(() => {
                 pushProjectsToGithub(false);
@@ -1317,7 +1404,7 @@
             }
 
             // Pull latest projects.json for both authenticated Admins and unauthenticated Guest visitors
-            if ((githubConfig && githubConfig.owner && githubConfig.repo) || (PUBLIC_GITHUB_SOURCE.owner && PUBLIC_GITHUB_SOURCE.repo)) {
+            if (getActiveWriteGithubConfig() || (PUBLIC_GITHUB_SOURCE.owner && PUBLIC_GITHUB_SOURCE.repo)) {
                 const pulled = await pullProjectsFromGithub(false);
                 if (pulled) {
                     const refreshedProjects = localStorage.getItem('project_horizon_all_projects');
